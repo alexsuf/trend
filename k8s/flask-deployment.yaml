@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: trend-research
+  namespace: trend
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: trend-research
+
+  template:
+    metadata:
+      labels:
+        app: trend-research
+
+    spec:
+      containers:
+      - name: trend-research
+
+        image: alexsuf/trend
+
+        imagePullPolicy: Never
+
+        ports:
+        - containerPort: 5000

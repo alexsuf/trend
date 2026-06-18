@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+
+metadata:
+  name: trend-research
+  namespace: trend
+
+spec:
+  ingressClassName: nginx
+
+  rules:
+  - host: trend.local
+
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+
+        backend:
+          service:
+            name: trend-research
+
+            port:
+              number: 80
