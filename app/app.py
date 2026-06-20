@@ -10,9 +10,9 @@ def index():
     return f"""
     <h1>Trend Research MVP</h1>
 
-    <p>Flask is working.</p>
+    <p>Flask работает.</p>
 
-    <p>Hostname: {hostname}</p>
+    <p>Имя хоста: {hostname}</p>
     """
 
 @app.route("/health")
