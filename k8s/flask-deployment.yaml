@@ -1,29 +1,48 @@
 apiVersion: apps/v1
 kind: Deployment
-
+ 
 metadata:
   name: trend-research
   namespace: trend
-
+ 
 spec:
   replicas: 1
-
+ 
   selector:
     matchLabels:
       app: trend-research
-
+ 
   template:
     metadata:
       labels:
         app: trend-research
-
+ 
     spec:
+      hostAliases:
+      - ip: 10.111.129.2
+        hostnames:
+        - "auth.local"
+        - "trend.local"
       containers:
       - name: trend-research
-
+ 
         image: alexsuf/trend
-
+ 
         imagePullPolicy: Never
-
+ 
         ports:
         - containerPort: 5000
+ 
+        env:
+        - name: FLASK_SECRET_KEY
+          value: "super-secret-key-for-dev-change-in-prod"
+        - name: KEYCLOAK_URL
+          value: "http://auth.local"
+        - name: KEYCLOAK_INTERNAL_URL
+          value: "http://keycloak.keycloak.svc.cluster.local"
+        - name: KEYCLOAK_REALM
+          value: "trend"
+        - name: KEYCLOAK_CLIENT_ID
+          value: "trend-web"
+        - name: KEYCLOAK_CLIENT_SECRET
+          value: "bbWGIugaSj9ithjybqoNR5hXI9acjEel"

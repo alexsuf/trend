@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Trend Research App</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+    <div class="container">
+        <h1>Добро пожаловать в Trend Research App</h1>
+        
+        {% if user %}
+            <p>Вы вошли как: <strong>{{ user.name }}</strong></p>
+            <p>Email: {{ user.email }}</p>
+            <p>Роли: {{ user.roles | join(', ') }}</p>
+            <a href="/profile" class="btn btn-primary">Профиль</a>
+            <a href="/logout" class="btn btn-secondary">Выйти</a>
+        {% else %}
+            <p>Пожалуйста, войдите для доступа к приложению.</p>
+            <a href="/login" class="btn btn-primary">Войти через Keycloak</a>
+        {% endif %}
+    </div>
+</body>
+</html>
