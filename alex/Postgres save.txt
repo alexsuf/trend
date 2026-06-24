@@ -1,0 +1,18 @@
+Как сделать перенос базы Postgres:
+
+Посмотреть имя пода:
+kubectl get pods -n keycloak
+
+Сделать логический дамп:
+kubectl exec -n keycloak postgres-754c6fb57-cn5s7 -- pg_dump -U keycloak keycloak > keycloak.sql
+
+Восстановление на другом кластере:
+Копируем файл в под:
+kubectl cp keycloak.sql trend/postgres-xxxxxxxx:/tmp/keycloak.sql
+
+Восстанавливаем базу:
+kubectl exec -it -n trend postgres-xxxxxxxx -- psql -U keycloak -d keycloak -f /tmp/keycloak.sql
+
+Преимущества:
+Сохраняются все пользователи, роли, клиенты, realm'ы и настройки Keycloak.
+При этом перенос не зависит от внутреннего формата хранения данных PostgreSQL.

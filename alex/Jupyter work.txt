@@ -1,0 +1,9 @@
+Как стартовать Jupyter Notebook:
+
+Запустить port-forward:
+kubectl port-forward deployment/jupyter-notebook -n trend 8888:8888
+
+Web-доступ по адресу:
+http://localhost:8888/lab?token=debug-token
+
+Для Jupyter определили, что токен = debug-token

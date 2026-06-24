@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: jupyter-notebook
+  namespace: trend
+
+spec:
+  selector:
+    app: jupyter-notebook
+
+  ports:
+  - port: 80
+    targetPort: 8888
+
+  type: ClusterIP

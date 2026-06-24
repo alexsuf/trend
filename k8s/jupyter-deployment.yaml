@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: jupyter-notebook
+  namespace: trend
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: jupyter-notebook
+
+  template:
+    metadata:
+      labels:
+        app: jupyter-notebook
+
+    spec:
+      securityContext:
+        fsGroup: 100
+      hostAliases:
+      - ip: 10.111.129.2
+        hostnames:
+        - "auth.local"
+        - "trend.local"
+      containers:
+      - name: jupyter-notebook
+
+        securityContext:
+          runAsUser: 100
+          runAsGroup: 100
+
+        image: alexsuf/jupyter
+
+        imagePullPolicy: Never
+
+        ports:
+        - containerPort: 8888
+
+        env:
+        - name: JUPYTER_TOKEN
+          value: "debug-token"
+
+        volumeMounts:
+        - name: jupyter-work
+          mountPath: /home/jovyan/work
+
+      volumes:
+      - name: jupyter-work
+        emptyDir: {}
