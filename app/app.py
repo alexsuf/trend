@@ -4,9 +4,15 @@ from flask import Flask, redirect, url_for, session, render_template, request, j
 from authlib.integrations.flask_client import OAuth
 from functools import wraps
 from config import Config
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
+from models import User, Base
 
 app = Flask(__name__, template_folder='templates')
 app.config.from_object(Config)
+
+DATABASE_URL = os.environ.get('DATABASE_URL') or 'postgresql://trend:secret@postgres.keycloak.svc.cluster.local:5432/trend'
+engine = create_engine(DATABASE_URL)
 
 # Debug: Print all config values at startup
 app.logger.info("=== Flask Config at Startup ===")
@@ -97,10 +103,21 @@ def callback():
         if 'realm_access' in userinfo and 'roles' in userinfo['realm_access']:
             realm_roles = userinfo['realm_access']['roles']
         
+        keycloak_id = userinfo.get('sub', '')
+        username = userinfo.get('preferred_username', '')
+        email = userinfo.get('email', '')
+        
+        with Session(engine) as db_session:
+            user = db_session.scalar(select(User).where(User.keycloak_id == keycloak_id))
+            if not user:
+                user = User(keycloak_id=keycloak_id, username=username, email=email)
+                db_session.add(user)
+                db_session.commit()
+        
         session['user'] = {
-            'username': userinfo.get('preferred_username', ''),
-            'email': userinfo.get('email', ''),
-            'name': userinfo.get('name', userinfo.get('preferred_username', '')),
+            'username': username,
+            'email': email,
+            'name': userinfo.get('name', username),
             'roles': realm_roles,
             'token': access_token,
         }
