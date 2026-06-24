@@ -1,0 +1,62 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Группы LLM - Admin Panel{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Группы LLM</h2>
+    <a href="/groups/create" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Создать группу
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        {% if groups %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Название</th>
+                        <th>Описание</th>
+                        <th>Статус</th>
+                        <th>Создана</th>
+                        <th class="text-end">Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for group in groups %}
+                    <tr>
+                        <td>{{ group.group_number }}</td>
+                        <td><strong>{{ group.name }}</strong></td>
+                        <td>{{ group.description or '-' }}</td>
+                        <td>
+                            {% if group.enabled %}
+                            <span class="badge bg-success">Включена</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Выключена</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ group.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                        <td class="text-end">
+                            <a href="/groups/edit/{{ group.id }}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <form action="/groups/delete/{{ group.id }}" method="post" class="d-inline" onsubmit="return confirm('Удалить группу?')">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-4">Нет групп. Создайте первую!</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

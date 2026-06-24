@@ -1,0 +1,57 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Модели групп - Admin Panel{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Модели групп</h2>
+    <a href="/group-models/create" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Добавить модель
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        {% if relations %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Группа</th>
+                        <th>Модель</th>
+                        <th>По умолчанию</th>
+                        <th class="text-end">Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rel in relations %}
+                    <tr>
+                        <td>{{ rel.relation_number }}</td>
+                        <td><span class="badge bg-primary">{{ rel.group_id }}</span></td>
+                        <td><span class="badge bg-info">{{ rel.model_id }}</span></td>
+                        <td>
+                            {% if rel.is_default %}
+                            <span class="badge bg-warning">Да</span>
+                            {% else %}
+                            <span class="badge bg-light text-dark">Нет</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <form action="/group-models/delete/{{ rel.id }}" method="post" class="d-inline" onsubmit="return confirm('Удалить связь?')">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-4">Нет связей</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

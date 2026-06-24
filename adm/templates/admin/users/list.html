@@ -1,0 +1,52 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Пользователи - Admin Panel{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Пользователи</h2>
+
+<div class="card">
+    <div class="card-body">
+        {% if users_with_roles %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Администратор</th>
+                        <th class="text-end">Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user, roles in users_with_roles %}
+                    <tr>
+                        <td>{{ user.user_number }}</td>
+                        <td><strong>{{ user.username }}</strong></td>
+                        <td>{{ user.email }}</td>
+                        <td>
+                            {% if 'administrator' in roles %}
+                            <span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> Да</span>
+                            {% else %}
+                            <span class="badge bg-danger"><i class="bi bi-x-circle-fill"></i> Нет</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <form action="/users/delete/{{ user.id }}" method="post" class="d-inline" onsubmit="return confirm('Удалить пользователя?')">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-4">Нет пользователей</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

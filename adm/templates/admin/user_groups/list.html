@@ -1,0 +1,51 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Пользователи в группах - Admin Panel{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Пользователи в группах</h2>
+    <a href="/user-groups/create" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Добавить связь
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        {% if relations %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Пользователь</th>
+                        <th>Группа</th>
+                        <th>Создана</th>
+                        <th class="text-end">Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rel in relations %}
+                    <tr>
+                        <td>{{ rel.relation_number }}</td>
+                        <td><strong>{{ rel.user_id }}</strong></td>
+                        <td><strong>{{ rel.group_id }}</strong></td>
+                        <td>{{ rel.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                        <td class="text-end">
+                            <form action="/user-groups/delete/{{ rel.id }}" method="post" class="d-inline" onsubmit="return confirm('Удалить связь?')">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-4">Нет связей</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

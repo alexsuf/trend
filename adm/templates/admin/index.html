@@ -1,0 +1,76 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Дашборд - Admin Panel{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Дашборд</h2>
+
+<div class="row">
+    <div class="col-md-3">
+        <div class="card stat-card border-primary">
+            <div class="card-body text-center">
+                <i class="bi bi-people display-4 text-primary"></i>
+                <h3 class="mt-2">{{ stats.groups }}</h3>
+                <p class="text-muted">Группы LLM</p>
+                <a href="/groups" class="btn btn-sm btn-outline-primary">Управление</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card border-success">
+            <div class="card-body text-center">
+                <i class="bi bi-person display-4 text-success"></i>
+                <h3 class="mt-2">{{ stats.users }}</h3>
+                <p class="text-muted">Пользователи</p>
+                <a href="/users" class="btn btn-sm btn-outline-success">Управление</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card border-info">
+            <div class="card-body text-center">
+                <i class="bi bi-cloud display-4 text-info"></i>
+                <h3 class="mt-2">{{ stats.providers }}</h3>
+                <p class="text-muted">Провайдеры</p>
+                <a href="/providers" class="btn btn-sm btn-outline-info">Управление</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card border-warning">
+            <div class="card-body text-center">
+                <i class="bi bi-cpu display-4 text-warning"></i>
+                <h3 class="mt-2">{{ stats.models }}</h3>
+                <p class="text-muted">Модели</p>
+                <a href="/models" class="btn btn-sm btn-outline-warning">Управление</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-info-circle"></i> О системе
+            </div>
+            <div class="card-body">
+                <p>Админ панель для управления конфигурацией LLM моделей.</p>
+                <p class="mb-0 text-muted">Версия: 1.0.0</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-person-badge"></i> Текущий пользователь
+            </div>
+            <div class="card-body">
+                <p><strong>Имя:</strong> {{ user.name }}</p>
+                <p><strong>Email:</strong> {{ user.email }}</p>
+                <p><strong>Роли:</strong> {{ user.roles | join(', ') }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
