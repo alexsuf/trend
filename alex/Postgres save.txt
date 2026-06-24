@@ -5,6 +5,7 @@ kubectl get pods -n keycloak
 
 Сделать логический дамп:
 kubectl exec -n keycloak postgres-754c6fb57-cn5s7 -- pg_dump -U keycloak keycloak > keycloak.sql
+kubectl exec -n keycloak postgres-754c6fb57-cn5s7 -- pg_dump -U trend trend > trend.sql
 
 Восстановление на другом кластере:
 Копируем файл в под:

@@ -46,3 +46,5 @@ spec:
           value: "trend-web"
         - name: KEYCLOAK_CLIENT_SECRET
           value: "bbWGIugaSj9ithjybqoNR5hXI9acjEel"
+        - name: DATABASE_URL
+          value: "postgresql://trend:secret@postgres.keycloak.svc.cluster.local:5432/trend"

@@ -1,0 +1,28 @@
+apiVersion: batch/v1
+kind: Job
+
+metadata:
+  name: init-trend-db
+  namespace: keycloak
+
+spec:
+  ttlSecondsAfterFinished: 100
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: init-db
+        image: alexsuf/postgres
+        command:
+        - /bin/bash
+        - -c
+        - |
+          PGPASSWORD=secret psql -h postgres -U keycloak -d keycloak -c "CREATE DATABASE trend;" || true
+          PGPASSWORD=secret psql -h postgres -U keycloak -d keycloak -c "CREATE USER trend WITH PASSWORD 'secret';" || true
+          PGPASSWORD=secret psql -h postgres -U keycloak -d keycloak -c "GRANT ALL PRIVILEGES ON DATABASE trend TO trend;"
+          PGPASSWORD=secret psql -h postgres -U keycloak -d keycloak -c "GRANT ALL ON SCHEMA public TO trend;"
+          PGPASSWORD=secret psql -h postgres -U keycloak -d keycloak -c "ALTER DATABASE trend OWNER TO trend;"
+          PGPASSWORD=secret psql -h postgres -U keycloak -d keycloak -c "ALTER SCHEMA public OWNER TO trend;"
+        env:
+        - name: PGPASSWORD
+          value: secret
