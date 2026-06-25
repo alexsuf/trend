@@ -29,7 +29,7 @@
                     <tr>
                         <td>{{ rel.relation_number }}</td>
                         <td><strong>{{ rel.agent_name }}</strong></td>
-                        <td><span class="badge bg-info">{{ rel.model_id }}</span></td>
+                        <td><span class="badge bg-info">{{ rel.model.provider.name if rel.model and rel.model.provider else '-' }} - {{ rel.model.display_name or rel.model.model_name if rel.model else '-' }}</span></td>
                         <td>{{ rel.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
                         <td class="text-end">
                             <a href="/agent-models/edit/{{ rel.id }}" class="btn btn-sm btn-outline-primary">

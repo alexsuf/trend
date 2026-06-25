@@ -28,8 +28,8 @@
                     {% for rel in relations %}
                     <tr>
                         <td>{{ rel.relation_number }}</td>
-                        <td><strong>{{ rel.user_id }}</strong></td>
-                        <td><strong>{{ rel.group_id }}</strong></td>
+                        <td><strong>{{ rel.user.username if rel.user else '-' }}</strong></td>
+                        <td><strong>{{ rel.group.name if rel.group else '-' }}</strong></td>
                         <td>{{ rel.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
                         <td class="text-end">
                             <form action="/user-groups/delete/{{ rel.id }}" method="post" class="d-inline" onsubmit="return confirm('Удалить связь?')">

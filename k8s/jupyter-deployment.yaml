@@ -25,6 +25,10 @@ spec:
         hostnames:
         - "auth.local"
         - "trend.local"
+        - "adm.local"
+      - ip: 10.109.173.27
+        hostnames:
+        - "search.local"
       containers:
       - name: jupyter-notebook
 

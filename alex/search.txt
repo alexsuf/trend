@@ -1,0 +1,10 @@
+http://searxng.search.svc.cluster.local
+
+Пример в коде:
+
+import requests
+resp = requests.get('http://searxng.search.svc.cluster.local/search', params={'q': 'python', 'format': 'json'})
+Или изнутри пода Jupyter:
+
+curl http://searxng.search.svc.cluster.local/search?q=test&format=json
+

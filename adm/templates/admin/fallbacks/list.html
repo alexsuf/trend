@@ -28,8 +28,8 @@
                     {% for rel in relations %}
                     <tr>
                         <td>{{ rel.relation_number }}</td>
-                        <td><span class="badge bg-warning">{{ rel.model_id }}</span></td>
-                        <td><span class="badge bg-success">{{ rel.fallback_model_id }}</span></td>
+                        <td><span class="badge bg-warning">{{ rel.model.provider.name if rel.model and rel.model.provider else '-' }} - {{ rel.model.display_name or rel.model.model_name if rel.model else rel.model_id }}</span></td>
+                        <td><span class="badge bg-success">{{ rel.fallback_model.provider.name if rel.fallback_model and rel.fallback_model.provider else '-' }} - {{ rel.fallback_model.display_name or rel.fallback_model.model_name if rel.fallback_model else rel.fallback_model_id }}</span></td>
                         <td>{{ rel.priority }}</td>
                         <td class="text-end">
                             <form action="/fallbacks/delete/{{ rel.id }}" method="post" class="d-inline" onsubmit="return confirm('Удалить фолбэк?')">

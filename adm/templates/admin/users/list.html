@@ -16,6 +16,7 @@
                         <th>Username</th>
                         <th>Email</th>
                         <th>Администратор</th>
+                        <th>Аналитик</th>
                         <th class="text-end">Действия</th>
                     </tr>
                 </thead>
@@ -26,7 +27,14 @@
                         <td><strong>{{ user.username }}</strong></td>
                         <td>{{ user.email }}</td>
                         <td>
-                            {% if 'administrator' in roles %}
+                            {% if user.is_admin %}
+                            <span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> Да</span>
+                            {% else %}
+                            <span class="badge bg-danger"><i class="bi bi-x-circle-fill"></i> Нет</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.is_analyst %}
                             <span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> Да</span>
                             {% else %}
                             <span class="badge bg-danger"><i class="bi bi-x-circle-fill"></i> Нет</span>

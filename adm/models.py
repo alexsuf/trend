@@ -17,6 +17,8 @@ class User(Base):
     keycloak_id = Column(Text, unique=True, nullable=False)
     username = Column(Text)
     email = Column(Text)
+    is_admin = Column(Boolean, nullable=False, default=False)
+    is_analyst = Column(Boolean, nullable=False, default=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     user_groups = relationship('UserGroup', back_populates='user')

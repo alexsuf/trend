@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: searxng
+  namespace: search
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: searxng
+
+  template:
+    metadata:
+      labels:
+        app: searxng
+
+    spec:
+      containers:
+      - name: searxng
+
+        image: searxng/searxng:latest
+
+        ports:
+        - containerPort: 8080
+
+        env:
+        - name: SEARXNG_SETTINGS_PATH
+          value: "/etc/searxng/settings.yml"
+        - name: INSTANCE_NAME
+          value: "SearXNG"
+        - name: AUTOCOMPLETE
+          value: "google"
+        - name: SEARCH_ENGINE_API_KEY
+          value: ""
+        - name: SEARXNG_BIND_ADDRESS
+          value: "0.0.0.0:8080"
+
+        command: ["/bin/sh", "-c"]
+        args: ["unset PORT && exec /usr/local/searxng/.venv/bin/granian searx.webapp:app --host 0.0.0.0 --port 8080 --workers 2"]
+
+        volumeMounts:
+        - name: searxng-settings
+          mountPath: /etc/searxng/settings.yml
+          subPath: settings.yml
+        - name: tmp
+          mountPath: /tmp
+
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+
+      volumes:
+      - name: searxng-settings
+        configMap:
+          name: searxng-settings
+      - name: tmp
+        emptyDir: {}

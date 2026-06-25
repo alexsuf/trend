@@ -110,7 +110,13 @@ def callback():
         with Session(engine) as db_session:
             user = db_session.scalar(select(User).where(User.keycloak_id == keycloak_id))
             if not user:
-                user = User(keycloak_id=keycloak_id, username=username, email=email)
+                user = User(
+                    keycloak_id=keycloak_id,
+                    username=username,
+                    email=email,
+                    is_admin='administrator' in realm_roles,
+                    is_analyst='analyst' in realm_roles,
+                )
                 db_session.add(user)
                 db_session.commit()
         
@@ -121,7 +127,7 @@ def callback():
             'roles': realm_roles,
             'token': access_token,
         }
-        
+
         return redirect(url_for('profile'))
     except Exception as e:
         return f'Ошибка аутентификации: {str(e)}', 400

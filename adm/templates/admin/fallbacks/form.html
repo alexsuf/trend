@@ -13,7 +13,7 @@
                 <select name="model_id" class="form-select" required>
                     <option value="">-- Выберите --</option>
                     {% for m in models %}
-                    <option value="{{ m.id }}">{{ m.display_name or m.model_name }}</option>
+                    <option value="{{ m.id }}">{{ m.provider.name if m.provider else '-' }} - {{ m.display_name or m.model_name }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -22,7 +22,7 @@
                 <select name="fallback_model_id" class="form-select" required>
                     <option value="">-- Выберите --</option>
                     {% for m in models %}
-                    <option value="{{ m.id }}">{{ m.display_name or m.model_name }}</option>
+                    <option value="{{ m.id }}">{{ m.provider.name if m.provider else '-' }} - {{ m.display_name or m.model_name }}</option>
                     {% endfor %}
                 </select>
             </div>

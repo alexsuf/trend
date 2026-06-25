@@ -28,8 +28,8 @@
                     {% for rel in relations %}
                     <tr>
                         <td>{{ rel.relation_number }}</td>
-                        <td><span class="badge bg-primary">{{ rel.group_id }}</span></td>
-                        <td><span class="badge bg-info">{{ rel.model_id }}</span></td>
+                        <td><span class="badge bg-primary">{{ rel.group.name if rel.group else '-' }}</span></td>
+                        <td><span class="badge bg-info">{{ rel.model.provider.name if rel.model and rel.model.provider else '-' }} - {{ rel.model.display_name or rel.model.model_name if rel.model else '-' }}</span></td>
                         <td>
                             {% if rel.is_default %}
                             <span class="badge bg-warning">Да</span>

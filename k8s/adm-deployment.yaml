@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: trend-adm
+  namespace: trend
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: trend-adm
+
+  template:
+    metadata:
+      labels:
+        app: trend-adm
+
+    spec:
+      hostAliases:
+      - ip: 10.111.129.2
+        hostnames:
+        - "auth.local"
+        - "trend.local"
+        - "adm.local"
+      containers:
+      - name: trend-adm
+
+        image: alexsuf/trend-adm
+
+        imagePullPolicy: Never
+
+        ports:
+        - containerPort: 5000
+
+        env:
+        - name: FLASK_SECRET_KEY
+          value: "super-secret-key-for-adm-change-in-prod"
+        - name: KEYCLOAK_URL
+          value: "http://auth.local"
+        - name: KEYCLOAK_INTERNAL_URL
+          value: "http://keycloak.keycloak.svc.cluster.local"
+        - name: KEYCLOAK_REALM
+          value: "trend"
+        - name: KEYCLOAK_CLIENT_ID
+          value: "trend-admin"
+        - name: KEYCLOAK_CLIENT_SECRET
+          value: "ZePGCk9losJjuOtQxBLcHK64RgAF5MfNDaqpnS7b3V"
+        - name: KEYCLOAK_ADMIN_USER
+          value: "admin"
+        - name: KEYCLOAK_ADMIN_PASS
+          value: "secret"
+        - name: DATABASE_URL
+          value: "postgresql://trend:secret@postgres.keycloak.svc.cluster.local:5432/trend"

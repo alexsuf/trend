@@ -160,6 +160,9 @@ def callback():
             'token': access_token,
         }
 
+        if 'administrator' not in realm_roles:
+            return render_template('admin/access_denied.html'), 403
+
         return redirect(url_for('index'))
     except Exception as e:
         return f'Ошибка аутентификации: {str(e)}', 400
@@ -273,7 +276,10 @@ def users_delete(user_id):
 def user_groups_list():
     with get_db_session() as db:
         relations = db.scalars(
-            select(UserGroup).order_by(UserGroup.relation_number)
+            select(UserGroup)
+            .options(joinedload(UserGroup.user))
+            .options(joinedload(UserGroup.group))
+            .order_by(UserGroup.relation_number)
         ).all()
     return render_template('admin/user_groups/list.html', relations=relations, user=session.get('user'))
 
@@ -470,7 +476,10 @@ def models_delete(model_id):
 def group_models_list():
     with get_db_session() as db:
         relations = db.scalars(
-            select(GroupModel).order_by(GroupModel.relation_number)
+            select(GroupModel)
+            .options(joinedload(GroupModel.group))
+            .options(joinedload(GroupModel.model).joinedload(LLMModel.provider))
+            .order_by(GroupModel.relation_number)
         ).all()
     return render_template('admin/group_models/list.html', relations=relations, user=session.get('user'))
 
@@ -480,7 +489,11 @@ def group_models_list():
 def group_models_create():
     with get_db_session() as db:
         groups = db.scalars(select(LLMGroup).order_by(LLMGroup.name)).all()
-        models = db.scalars(select(LLMModel).order_by(LLMModel.display_name)).all()
+        models = db.scalars(
+            select(LLMModel)
+            .options(joinedload(LLMModel.provider))
+            .order_by(LLMModel.display_name)
+        ).all()
 
     if request.method == 'POST':
         with get_db_session() as db:
@@ -522,7 +535,10 @@ def group_models_delete(rel_id):
 def fallbacks_list():
     with get_db_session() as db:
         relations = db.scalars(
-            select(LLMFallback).order_by(LLMFallback.relation_number)
+            select(LLMFallback)
+            .options(joinedload(LLMFallback.model).joinedload(LLMModel.provider))
+            .options(joinedload(LLMFallback.fallback_model).joinedload(LLMModel.provider))
+            .order_by(LLMFallback.relation_number)
         ).all()
     return render_template('admin/fallbacks/list.html', relations=relations, user=session.get('user'))
 
@@ -531,7 +547,11 @@ def fallbacks_list():
 @admin_required
 def fallbacks_create():
     with get_db_session() as db:
-        models = db.scalars(select(LLMModel).order_by(LLMModel.display_name)).all()
+        models = db.scalars(
+            select(LLMModel)
+            .options(joinedload(LLMModel.provider))
+            .order_by(LLMModel.display_name)
+        ).all()
 
     if request.method == 'POST':
         with get_db_session() as db:
@@ -573,7 +593,9 @@ def fallbacks_delete(rel_id):
 def agent_models_list():
     with get_db_session() as db:
         relations = db.scalars(
-            select(AgentModel).order_by(AgentModel.relation_number)
+            select(AgentModel)
+            .options(joinedload(AgentModel.model).joinedload(LLMModel.provider))
+            .order_by(AgentModel.relation_number)
         ).all()
     return render_template('admin/agent_models/list.html', relations=relations, user=session.get('user'))
 
@@ -582,7 +604,11 @@ def agent_models_list():
 @admin_required
 def agent_models_create():
     with get_db_session() as db:
-        models = db.scalars(select(LLMModel).order_by(LLMModel.display_name)).all()
+        models = db.scalars(
+            select(LLMModel)
+            .options(joinedload(LLMModel.provider))
+            .order_by(LLMModel.display_name)
+        ).all()
 
     if request.method == 'POST':
         with get_db_session() as db:
@@ -611,7 +637,11 @@ def agent_models_edit(rel_id):
             flash_message('Запись не найдена', 'danger')
             return redirect(url_for('agent_models_list'))
 
-        models = db.scalars(select(LLMModel).order_by(LLMModel.display_name)).all()
+        models = db.scalars(
+            select(LLMModel)
+            .options(joinedload(LLMModel.provider))
+            .order_by(LLMModel.display_name)
+        ).all()
 
         if request.method == 'POST':
             relation.agent_name = request.form['agent_name']

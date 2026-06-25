@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, String, Text, TIMESTAMP, BigInteger, JSON, ForeignKey, Enum as SAEnum, text
+from sqlalchemy import create_engine, Column, String, Text, TIMESTAMP, BigInteger, JSON, ForeignKey, Enum as SAEnum, text, Boolean
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
@@ -28,6 +28,8 @@ class User(Base):
     keycloak_id = Column(Text, unique=True, nullable=False)
     username = Column(Text)
     email = Column(Text)
+    is_admin = Column(Boolean, nullable=False, default=False)
+    is_analyst = Column(Boolean, nullable=False, default=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
 
