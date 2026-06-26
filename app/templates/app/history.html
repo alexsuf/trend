@@ -1,0 +1,59 @@
+{% extends "app/base.html" %}
+
+{% block title %}История запросов - Trend Research{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>История запросов</h2>
+    <a href="/query" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Новый запрос
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        {% if tasks %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Запрос</th>
+                        <th>Модель</th>
+                        <th>Статус</th>
+                        <th>Создан</th>
+                        <th>Завершён</th>
+                        <th class="text-end">Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for task in tasks %}
+                    <tr>
+                        <td>{{ task.task_number }}</td>
+                        <td><strong class="text-truncate d-inline-block" style="max-width: 300px;">{{ task.prompt }}</strong></td>
+                        <td>{{ task.model_used or '-' }}</td>
+                        <td>
+                            <span class="badge status-{{ task.status.value }}">{{ task.status.value }}</span>
+                        </td>
+                        <td>{{ task.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                        <td>{{ task.finished_at.strftime('%d.%m.%Y %H:%M') if task.finished_at else '-' }}</td>
+                        <td class="text-end">
+                            {% if task.status == 'done' %}
+                            <a href="/reports/{{ task.id }}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-file-earmark-text"></i> Отчёт
+                            </a>
+                            {% else %}
+                            <span class="text-muted small">В процессе</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-4">Нет запросов. <a href="/query">Создайте первый</a></p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

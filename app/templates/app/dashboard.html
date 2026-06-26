@@ -1,0 +1,92 @@
+{% extends "app/base.html" %}
+
+{% block title %}Дашборд - Trend Research{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Дашборд</h2>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card stat-card border-primary">
+            <div class="card-body text-center">
+                <i class="bi bi-list-task display-4 text-primary"></i>
+                <h3 class="mt-2">{{ total_tasks }}</h3>
+                <p class="text-muted">Всего запросов</p>
+                <a href="/history" class="btn btn-sm btn-outline-primary">Просмотр</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card border-success">
+            <div class="card-body text-center">
+                <i class="bi bi-check-circle display-4 text-success"></i>
+                <h3 class="mt-2">{{ completed_tasks }}</h3>
+                <p class="text-muted">Завершено</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card border-danger">
+            <div class="card-body text-center">
+                <i class="bi bi-exclamation-triangle display-4 text-danger"></i>
+                <h3 class="mt-2">{{ error_tasks }}</h3>
+                <p class="text-muted">Ошибок</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-bar-chart"></i> Запросы по дням (последние 14 дней)
+            </div>
+            <div class="card-body">
+                {% if daily_stats %}
+                <table class="table table-sm">
+                    <thead>
+                        <tr><th>Дата</th><th>Количество</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for date, count in daily_stats %}
+                        <tr>
+                            <td>{{ date.strftime('%d.%m.%Y') }}</td>
+                            <td>{{ count }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted text-center py-4">Нет данных</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-clock"></i> Последние запросы
+            </div>
+            <div class="card-body">
+                {% if recent_tasks %}
+                <div class="list-group list-group-flush">
+                    {% for task in recent_tasks %}
+                    <a href="/reports/{{ task.id }}" class="list-group-item list-group-item-action">
+                        <div class="d-flex w-100 justify-content-between">
+                            <small>#{{ task.task_number }}</small>
+                            <small>{{ task.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+                        </div>
+                        <p class="mb-1 text-truncate">{{ task.prompt }}</p>
+                        <small class="status-{{ task.status.value }}">{{ task.status.value }}</small>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted text-center py-4">Нет запросов</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

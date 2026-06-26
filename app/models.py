@@ -1,5 +1,5 @@
-from sqlalchemy import create_engine, Column, String, Text, TIMESTAMP, BigInteger, JSON, ForeignKey, Enum as SAEnum, text, Boolean
-from sqlalchemy.orm import declarative_base
+from sqlalchemy import create_engine, Column, String, Text, TIMESTAMP, BigInteger, JSON, ForeignKey, Enum as SAEnum, text, Boolean, Numeric, Integer
+from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 import enum
@@ -32,6 +32,8 @@ class User(Base):
     is_analyst = Column(Boolean, nullable=False, default=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
+    research_tasks = relationship('ResearchTask', back_populates='user')
+
 
 class ResearchTask(Base):
     __tablename__ = 'research_tasks'
@@ -48,6 +50,10 @@ class ResearchTask(Base):
     started_at = Column(TIMESTAMP)
     finished_at = Column(TIMESTAMP)
 
+    user = relationship('User', back_populates='research_tasks')
+    report = relationship('ResearchReport', back_populates='task', uselist=False)
+    events = relationship('AgentEvent', back_populates='task')
+
 
 class ResearchReport(Base):
     __tablename__ = 'research_reports'
@@ -58,6 +64,8 @@ class ResearchReport(Base):
     report_json = Column(JSONB, nullable=False)
     sources = Column(JSONB)
     created_at = Column(TIMESTAMP, server_default=func.now())
+
+    task = relationship('ResearchTask', back_populates='report')
 
 
 class AgentEvent(Base):
@@ -71,6 +79,41 @@ class AgentEvent(Base):
     message = Column(Text)
     meta = Column(JSONB)
     created_at = Column(TIMESTAMP, server_default=func.now())
+
+    task = relationship('ResearchTask', back_populates='events')
+
+
+class LLMProvider(Base):
+    __tablename__ = 'llm_providers'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    provider_number = Column(BigInteger, unique=True, server_default=text("nextval('llm_providers_provider_number_seq'::regclass)"))
+    name = Column(Text, unique=True, nullable=False)
+    provider_type = Column(Text, nullable=False)
+    base_url = Column(Text, nullable=False)
+    api_key = Column(Text)
+    enabled = Column(Boolean, nullable=False, default=True)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    models = relationship('LLMModel', back_populates='provider')
+
+
+class LLMModel(Base):
+    __tablename__ = 'llm_models'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    model_number = Column(BigInteger, unique=True, server_default=text("nextval('llm_models_model_number_seq'::regclass)"))
+    provider_id = Column(UUID(as_uuid=True), ForeignKey('llm_providers.id', ondelete='CASCADE'), nullable=False)
+    model_name = Column(Text, nullable=False)
+    display_name = Column(Text)
+    context_size = Column(Integer)
+    max_tokens = Column(Integer)
+    temperature = Column(Numeric(3, 2))
+    enabled = Column(Boolean, nullable=False, default=True)
+    priority = Column(Integer, nullable=False, default=100)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    provider = relationship('LLMProvider', back_populates='models')
 
 
 def init_db():
