@@ -497,10 +497,24 @@ def group_models_create():
 
     if request.method == 'POST':
         with get_db_session() as db:
+            group_id = request.form['group_id']
+            model_id = request.form['model_id']
+            is_default = request.form.get('is_default') == 'on'
+
+            if is_default:
+                db.execute(
+                    select(GroupModel).where(GroupModel.group_id == group_id, GroupModel.is_default == True)
+                )
+                existing_defaults = db.scalars(
+                    select(GroupModel).where(GroupModel.group_id == group_id, GroupModel.is_default == True)
+                ).all()
+                for d in existing_defaults:
+                    d.is_default = False
+
             relation = GroupModel(
-                group_id=request.form['group_id'],
-                model_id=request.form['model_id'],
-                is_default=request.form.get('is_default') == 'on'
+                group_id=group_id,
+                model_id=model_id,
+                is_default=is_default,
             )
             db.add(relation)
             try:
