@@ -51,17 +51,19 @@ def generate_word_report(state):
     doc.add_page_break()
 
     score_text = state.get("score", "")
-    if "**Оценка:" in score_text or "**Score:" in score_text:
-        match = re.search(r"\*\*Оценка:\s*(\d+(?:\.\d+)?)\s*/\s*10", score_text)
+    if "Оценка устойчивости:" in score_text:
+        match = re.search(r"Оценка устойчивости:\s*(\d+(?:\.\d+)?)\s*из\s*10", score_text)
         if not match:
             match = re.search(r"(\d+(?:\.\d+)?)\s*/\s*10", score_text)
+        if not match:
+            match = re.search(r"(\d+(?:\.\d+)?)\s*из\s*10", score_text)
         if match:
             score_num = float(match.group(1))
             doc.add_heading("Оценка устойчивости тренда", level=1)
             score_p = doc.add_paragraph()
             score_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            r = score_p.add_run(f"{score_num:.0f}")
-            r.font.size = Pt(48)
+            r = score_p.add_run(f"{score_num:.0f} из 10")
+            r.font.size = Pt(36)
             r.bold = True
             if score_num >= 7:
                 r.font.color.rgb = RGBColor(0x27, 0xAE, 0x60)
@@ -69,7 +71,7 @@ def generate_word_report(state):
                 r.font.color.rgb = RGBColor(0xF3, 0x9C, 0x12)
             else:
                 r.font.color.rgb = RGBColor(0xE7, 0x4C, 0x3C)
-            score_text_clean = re.sub(r"\*\*Оценка:.*?\*\*", "", score_text).strip()
+            score_text_clean = re.sub(r"Оценка устойчивости:.*?\n", "", score_text).strip()
             _write_markdown_enhanced(doc, score_text_clean)
 
     doc.add_heading("Глобальный анализ", level=1)
