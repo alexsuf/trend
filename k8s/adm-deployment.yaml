@@ -35,6 +35,8 @@ spec:
         - containerPort: 5000
 
         env:
+        - name: TZ
+          value: "Europe/Moscow"
         - name: FLASK_SECRET_KEY
           value: "super-secret-key-for-adm-change-in-prod"
         - name: KEYCLOAK_URL
@@ -47,6 +49,8 @@ spec:
           value: "trend-admin"
         - name: KEYCLOAK_CLIENT_SECRET
           value: "ZePGCk9losJjuOtQxBLcHK64RgAF5MfNDaqpnS7b3V"
+        - name: PGTZ
+          value: "Europe/Moscow"
         - name: KEYCLOAK_ADMIN_USER
           value: "admin"
         - name: KEYCLOAK_ADMIN_PASS

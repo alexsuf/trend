@@ -1,32 +1,39 @@
 import os
 import json
-from flask import Flask, redirect, url_for, session, render_template, request, jsonify, flash
+import base64
+import datetime
+import requests
+from flask import Flask, redirect, url_for, session, render_template, request, jsonify, flash, send_file
 from authlib.integrations.flask_client import OAuth
 from functools import wraps
-from config import Config
-from sqlalchemy import create_engine, select, func
+from sqlalchemy import create_engine, select, func, delete
 from sqlalchemy.orm import Session, joinedload
-from models import User, ResearchTask, ResearchReport, AgentEvent, Base, TaskStatus, LLMModel
+from io import BytesIO
+from models import (
+    User, ResearchTask, ResearchReport, TaskStatus,
+    LLMModel, LLMProvider, LLMGroup, UserGroup,
+    GroupModel, LLMFallback, AgentEvent, Base
+)
+from task_store import task_store
+from word_generator import generate_word_report
+from pipeline import run_pipeline
 
 app = Flask(__name__, template_folder='templates')
-app.config.from_object(Config)
+app.secret_key = os.environ.get('FLASK_SECRET_KEY') or 'dev-secret-key-change-in-prod'
+app.config['PROPAGATE_EXCEPTIONS'] = True
 
 DATABASE_URL = os.environ.get('DATABASE_URL') or 'postgresql://trend:secret@postgres.keycloak.svc.cluster.local:5432/trend'
 engine = create_engine(DATABASE_URL)
 
-# Debug: Print all config values at startup
-app.logger.info("=== Flask Config at Startup ===")
-for key, value in app.config.items():
-    if 'KEYCLOAK' in key or 'URL' in key:
-        app.logger.info(f"{key}: {value}")
+Base.metadata.create_all(engine)
 
 oauth = OAuth(app)
 
-KEYCLOAK_URL = app.config['KEYCLOAK_URL']
-KEYCLOAK_INTERNAL_URL = app.config['KEYCLOAK_INTERNAL_URL']
-KEYCLOAK_REALM = app.config['KEYCLOAK_REALM']
-KEYCLOAK_CLIENT_ID = app.config['KEYCLOAK_CLIENT_ID']
-KEYCLOAK_CLIENT_SECRET = app.config['KEYCLOAK_CLIENT_SECRET']
+KEYCLOAK_URL = os.environ.get('KEYCLOAK_URL') or 'http://auth.local'
+KEYCLOAK_INTERNAL_URL = os.environ.get('KEYCLOAK_INTERNAL_URL') or 'http://keycloak.keycloak.svc.cluster.local'
+KEYCLOAK_REALM = os.environ.get('KEYCLOAK_REALM') or 'trend'
+KEYCLOAK_CLIENT_ID = os.environ.get('KEYCLOAK_CLIENT_ID') or 'trend-web'
+KEYCLOAK_CLIENT_SECRET = os.environ.get('KEYCLOAK_CLIENT_SECRET') or 'bbWGIugaSj9ithjybqoNR5hXI9acjEel'
 
 oauth.register(
     'keycloak',
@@ -47,32 +54,24 @@ def login_required(f):
     return decorated_function
 
 
-def role_required(roles):
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            if 'user' not in session:
-                return redirect(url_for('login'))
-            user_roles = session.get('user', {}).get('roles', [])
-            if not any(role in user_roles for role in roles):
-                return 'Доступ запрещён. Требуется одна из ролей: ' + ', '.join(roles), 403
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
+def get_db_session():
+    return Session(engine)
+
+
+def flash_message(message, category='info'):
+    flash(message, category)
+
+
+@app.route('/')
+def index():
+    if 'user' in session:
+        return redirect(url_for('dashboard'))
+    return render_template('index.html')
 
 
 @app.route('/login')
 def login():
     redirect_uri = url_for('callback', _external=True)
-    
-    # Debug logging
-    app.logger.info(f"=== Keycloak Login Debug Info ===")
-    app.logger.info(f"redirect_uri: {redirect_uri}")
-    app.logger.info(f"KEYCLOAK_URL (external): {KEYCLOAK_URL}")
-    app.logger.info(f"KEYCLOAK_INTERNAL_URL (internal): {KEYCLOAK_INTERNAL_URL}")
-    app.logger.info(f"Request host: {request.host}")
-    app.logger.info(f"Request url: {request.url}")
-    
     return oauth.keycloak.authorize_redirect(redirect_uri)
 
 
@@ -81,45 +80,35 @@ def callback():
     try:
         token = oauth.keycloak.authorize_access_token()
         access_token = token.get('access_token', '')
-        
-        import base64
-        
-        # Extract userinfo from access token claims (since no id_token is returned)
+
         if access_token:
             parts = access_token.split('.')
             payload = base64.b64decode(parts[1] + '=' * (4 - len(parts[1]) % 4)).decode()
             userinfo = json.loads(payload)
         else:
             userinfo = {}
-        
-        # Get roles from the token
+
         realm_roles = []
         if 'realm_access' in userinfo and 'roles' in userinfo['realm_access']:
             realm_roles = userinfo['realm_access']['roles']
-        
+
         keycloak_id = userinfo.get('sub', '')
         username = userinfo.get('preferred_username', '')
         email = userinfo.get('email', '')
-        
-        with Session(engine) as db_session:
+
+        with get_db_session() as db_session:
             user = db_session.scalar(select(User).where(User.keycloak_id == keycloak_id))
             if not user:
-                user = User(
-                    keycloak_id=keycloak_id,
-                    username=username,
-                    email=email,
-                    is_admin='administrator' in realm_roles,
-                    is_analyst='analyst' in realm_roles,
-                )
+                user = User(keycloak_id=keycloak_id, username=username, email=email)
                 db_session.add(user)
                 db_session.commit()
-        
+
         session['user'] = {
-            'keycloak_id': keycloak_id,
             'username': username,
             'email': email,
             'name': userinfo.get('name', username),
             'roles': realm_roles,
+            'keycloak_id': keycloak_id,
             'token': access_token,
         }
 
@@ -128,161 +117,9 @@ def callback():
         return f'Ошибка аутентификации: {str(e)}', 400
 
 
-@app.route('/')
-def index():
-    user = session.get('user')
-    if user:
-        return redirect(url_for('dashboard'))
-    return render_template('index.html', user=user)
-
-
-@app.route('/dashboard')
-@login_required
-def dashboard():
-    user = session.get('user')
-    keycloak_id = user.get('keycloak_id', '')
-
-    with Session(engine) as db_session:
-        db_user = db_session.scalar(select(User).where(User.keycloak_id == keycloak_id))
-        if not db_user:
-            return redirect(url_for('logout'))
-
-        total_tasks = db_session.scalar(
-            select(func.count()).select_from(ResearchTask).where(ResearchTask.user_id == db_user.id)
-        )
-        completed_tasks = db_session.scalar(
-            select(func.count()).select_from(ResearchTask).where(
-                ResearchTask.user_id == db_user.id,
-                ResearchTask.status == TaskStatus.done
-            )
-        )
-        error_tasks = db_session.scalar(
-            select(func.count()).select_from(ResearchTask).where(
-                ResearchTask.user_id == db_user.id,
-                ResearchTask.status == TaskStatus.error
-            )
-        )
-
-        daily_stats = db_session.execute(
-            select(
-                func.date(ResearchTask.created_at).label('date'),
-                func.count().label('count')
-            ).where(ResearchTask.user_id == db_user.id)
-            .group_by(func.date(ResearchTask.created_at))
-            .order_by(func.date(ResearchTask.created_at).desc())
-            .limit(14)
-        ).fetchall()
-
-        recent_tasks = db_session.scalars(
-            select(ResearchTask)
-            .where(ResearchTask.user_id == db_user.id)
-            .order_by(ResearchTask.created_at.desc())
-            .limit(10)
-        ).all()
-
-    return render_template(
-        'app/dashboard.html',
-        user=user,
-        total_tasks=total_tasks or 0,
-        completed_tasks=completed_tasks or 0,
-        error_tasks=error_tasks or 0,
-        daily_stats=daily_stats,
-        recent_tasks=recent_tasks,
-    )
-
-
-@app.route('/history')
-@login_required
-def history():
-    user = session.get('user')
-    keycloak_id = user.get('keycloak_id', '')
-
-    with Session(engine) as db_session:
-        db_user = db_session.scalar(select(User).where(User.keycloak_id == keycloak_id))
-        if not db_user:
-            return redirect(url_for('logout'))
-
-        tasks = db_session.scalars(
-            select(ResearchTask)
-            .where(ResearchTask.user_id == db_user.id)
-            .order_by(ResearchTask.created_at.desc())
-        ).all()
-
-    return render_template('app/history.html', user=user, tasks=tasks)
-
-
-@app.route('/query', methods=['GET', 'POST'])
-@login_required
-def new_query():
-    user = session.get('user')
-    keycloak_id = user.get('keycloak_id', '')
-
-    with Session(engine) as db_session:
-        db_user = db_session.scalar(select(User).where(User.keycloak_id == keycloak_id))
-        if not db_user:
-            return redirect(url_for('logout'))
-
-        models = db_session.execute(
-            select(LLMModel).options(joinedload(LLMModel.provider)).order_by(LLMModel.model_name)
-        ).scalars().all()
-
-        if request.method == 'POST':
-            prompt = request.form.get('prompt', '').strip()
-            model_id = request.form.get('model_id')
-            if not prompt or not model_id:
-                flash('Заполните все поля', 'danger')
-            else:
-                task = ResearchTask(
-                    user_id=db_user.id,
-                    prompt=prompt,
-                    model_used=str(model_id),
-                    status=TaskStatus.queued,
-                )
-                db_session.add(task)
-                db_session.commit()
-                flash('Запрос создан', 'success')
-                return redirect(url_for('history'))
-
-    return render_template('app/query.html', user=user, models=models)
-
-
-@app.route('/reports/<uuid:task_id>')
-@login_required
-def report_view(task_id):
-    user = session.get('user')
-    keycloak_id = user.get('keycloak_id', '')
-
-    with Session(engine) as db_session:
-        db_user = db_session.scalar(select(User).where(User.keycloak_id == keycloak_id))
-        if not db_user:
-            return redirect(url_for('logout'))
-
-        task = db_session.scalar(
-            select(ResearchTask)
-            .where(ResearchTask.id == task_id, ResearchTask.user_id == db_user.id)
-        )
-        if not task:
-            return 'Отчёт не найден', 404
-
-        report = db_session.scalar(
-            select(ResearchReport).where(ResearchReport.task_id == task_id)
-        )
-
-    return render_template('app/report.html', user=user, task=task, report=report)
-
-
-@app.route('/profile')
-@login_required
-def profile():
-    user = session.get('user')
-    return render_template('profile.html', user=user)
-
-
 @app.route('/logout')
 def logout():
-    id_token = session.get('user', {}).get('token', '')
     session.clear()
-    
     logout_url = (
         f'{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/logout'
         f'?redirect_uri={url_for("index", _external=True)}'
@@ -290,10 +127,342 @@ def logout():
     return redirect(logout_url)
 
 
-@app.route('/api/me')
+@app.route('/dashboard')
 @login_required
-def api_me():
-    return jsonify(session.get('user'))
+def dashboard():
+    keycloak_id = session['user'].get('keycloak_id')
+    with get_db_session() as db:
+        user = db.scalar(select(User).where(User.keycloak_id == keycloak_id))
+        if not user:
+            return redirect(url_for('logout'))
+
+        total_tasks = db.scalar(
+            select(func.count()).select_from(ResearchTask)
+            .where(ResearchTask.user_id == user.id)
+        )
+        completed_tasks = db.scalar(
+            select(func.count()).select_from(ResearchTask)
+            .where(ResearchTask.user_id == user.id, ResearchTask.status == TaskStatus.done)
+        )
+        error_tasks = db.scalar(
+            select(func.count()).select_from(ResearchTask)
+            .where(ResearchTask.user_id == user.id, ResearchTask.status == TaskStatus.error)
+        )
+
+        recent_tasks = db.scalars(
+            select(ResearchTask)
+            .where(ResearchTask.user_id == user.id)
+            .order_by(ResearchTask.created_at.desc())
+            .limit(10)
+        ).all()
+
+        yesterday = datetime.datetime.utcnow() - datetime.timedelta(days=14)
+        daily_rows = db.execute(
+            select(
+                func.date(ResearchTask.created_at).label('day'),
+                func.count().label('cnt')
+            )
+            .where(ResearchTask.user_id == user.id, ResearchTask.created_at >= yesterday)
+            .group_by(func.date(ResearchTask.created_at))
+            .order_by(func.date(ResearchTask.created_at).desc())
+        ).all()
+        daily_stats = [(row.day, row.cnt) for row in daily_rows]
+
+    return render_template('app/dashboard.html',
+        total_tasks=total_tasks,
+        completed_tasks=completed_tasks,
+        error_tasks=error_tasks,
+        recent_tasks=recent_tasks,
+        daily_stats=daily_stats)
+
+
+@app.route('/history')
+@login_required
+def history():
+    keycloak_id = session['user'].get('keycloak_id')
+    with get_db_session() as db:
+        user = db.scalar(select(User).where(User.keycloak_id == keycloak_id))
+        if not user:
+            return redirect(url_for('logout'))
+        tasks = db.scalars(
+            select(ResearchTask)
+            .where(ResearchTask.user_id == user.id)
+            .order_by(ResearchTask.created_at.desc())
+        ).all()
+    return render_template('app/history.html', tasks=tasks)
+
+
+@app.route('/history/delete/<uuid:task_id>', methods=['POST'])
+@login_required
+def history_delete(task_id):
+    keycloak_id = session['user'].get('keycloak_id')
+    with get_db_session() as db:
+        user = db.scalar(select(User).where(User.keycloak_id == keycloak_id))
+        if not user:
+            return redirect(url_for('logout'))
+        task = db.scalar(
+            select(ResearchTask)
+            .where(ResearchTask.id == task_id, ResearchTask.user_id == user.id)
+        )
+        if task:
+            db.delete(task)
+            db.commit()
+            flash_message('Запрос удалён', 'success')
+        else:
+            flash_message('Запрос не найден', 'danger')
+    return redirect(url_for('history'))
+
+
+@app.route('/query', methods=['GET', 'POST'])
+@login_required
+def new_query():
+    keycloak_id = session['user'].get('keycloak_id')
+    with get_db_session() as db:
+        user = db.scalar(select(User).where(User.keycloak_id == keycloak_id))
+        if not user:
+            return redirect(url_for('logout'))
+
+        default_model_id = None
+        default_model_label = 'Не настроена'
+
+        user_group = db.scalar(
+            select(UserGroup).where(UserGroup.user_id == user.id)
+        )
+        if user_group:
+            default_relation = db.scalar(
+                select(GroupModel)
+                .where(GroupModel.group_id == user_group.group_id, GroupModel.is_default == True)
+            )
+            if not default_relation:
+                default_relation = db.scalar(
+                    select(GroupModel)
+                    .where(GroupModel.group_id == user_group.group_id)
+                    .order_by(GroupModel.relation_number)
+                )
+            if default_relation:
+                model = db.scalar(
+                    select(LLMModel)
+                    .options(joinedload(LLMModel.provider))
+                    .where(LLMModel.id == default_relation.model_id)
+                )
+                if model:
+                    default_model_id = str(model.id)
+                    provider_name = model.provider.name if model.provider else '-'
+                    default_model_label = f'{provider_name} - {model.display_name or model.model_name}'
+
+        if request.method == 'POST':
+            prompt = request.form.get('prompt', '').strip()
+            model_id = request.form.get('model_id', '')
+            if not prompt:
+                flash_message('Введите текст запроса', 'danger')
+                return render_template('app/query.html',
+                    default_model_id=default_model_id,
+                    default_model_label=default_model_label)
+            if not model_id or not default_model_id:
+                flash_message('Модель не настроена', 'danger')
+                return redirect(url_for('new_query'))
+
+            fallback_models = []
+            fallbacks = db.scalars(
+                select(LLMFallback)
+                .options(
+                    joinedload(LLMFallback.fallback_model).joinedload(LLMModel.provider)
+                )
+                .where(LLMFallback.model_id == model_id)
+                .order_by(LLMFallback.priority)
+            ).all()
+            for fb in fallbacks:
+                fb_model = fb.fallback_model
+                fb_provider = fb_model.provider
+                fallback_models.append({
+                    'model_name': fb_model.model_name,
+                    'api_key': fb_provider.api_key or os.environ.get('LLM_API_KEY', ''),
+                    'base_url': fb_provider.base_url,
+                })
+
+            task = ResearchTask(
+                user_id=user.id,
+                prompt=prompt,
+                status=TaskStatus.queued,
+                meta={'model_id': model_id, 'fallbacks': fallback_models},
+            )
+            db.add(task)
+            db.commit()
+            flash_message('Запрос поставлен в очередь', 'success')
+            return redirect(url_for('result_view', task_id=task.id))
+
+    return render_template('app/query.html',
+        default_model_id=default_model_id,
+        default_model_label=default_model_label)
+
+
+@app.route('/result/<uuid:task_id>')
+@login_required
+def result_view(task_id):
+    keycloak_id = session['user'].get('keycloak_id')
+    with get_db_session() as db:
+        user = db.scalar(select(User).where(User.keycloak_id == keycloak_id))
+        if not user:
+            return redirect(url_for('logout'))
+        task = db.scalar(
+            select(ResearchTask)
+            .where(ResearchTask.id == task_id, ResearchTask.user_id == user.id)
+        )
+        if not task:
+            flash_message('Запрос не найден', 'danger')
+            return redirect(url_for('history'))
+    return render_template('app/result.html', task_id=str(task_id), prompt=task.prompt)
+
+
+@app.route('/logs/<uuid:task_id>')
+@login_required
+def task_log(task_id):
+    keycloak_id = session['user'].get('keycloak_id')
+    with get_db_session() as db:
+        user = db.scalar(select(User).where(User.keycloak_id == keycloak_id))
+        if not user:
+            return redirect(url_for('logout'))
+        task = db.scalar(
+            select(ResearchTask)
+            .where(ResearchTask.id == task_id, ResearchTask.user_id == user.id)
+        )
+        if not task:
+            flash_message('Запрос не найден', 'danger')
+            return redirect(url_for('history'))
+        events = db.scalars(
+            select(AgentEvent)
+            .where(AgentEvent.task_id == task_id)
+            .order_by(AgentEvent.created_at.asc())
+        ).all()
+    return render_template('app/logs.html', task=task, events=events)
+
+
+@app.route('/reports/<uuid:task_id>')
+@login_required
+def report(task_id):
+    keycloak_id = session['user'].get('keycloak_id')
+    with get_db_session() as db:
+        user = db.scalar(select(User).where(User.keycloak_id == keycloak_id))
+        if not user:
+            return redirect(url_for('logout'))
+        task = db.scalar(
+            select(ResearchTask)
+            .where(ResearchTask.id == task_id, ResearchTask.user_id == user.id)
+        )
+        if not task:
+            flash_message('Отчёт не найден', 'danger')
+            return redirect(url_for('history'))
+        report_obj = db.scalar(
+            select(ResearchReport).where(ResearchReport.task_id == task_id)
+        )
+    return render_template('app/report.html', task=task, report=report_obj)
+
+
+@app.route('/download/<uuid:task_id>')
+@login_required
+def download(task_id):
+    keycloak_id = session['user'].get('keycloak_id')
+    with get_db_session() as db:
+        user = db.scalar(select(User).where(User.keycloak_id == keycloak_id))
+        if not user:
+            return redirect(url_for('logout'))
+        task = db.scalar(
+            select(ResearchTask)
+            .where(ResearchTask.id == task_id, ResearchTask.user_id == user.id)
+        )
+        if not task:
+            flash_message('Запрос не найден', 'danger')
+            return redirect(url_for('history'))
+        report_obj = db.scalar(
+            select(ResearchReport).where(ResearchReport.task_id == task_id)
+        )
+        if not report_obj or not report_obj.report_json:
+            flash_message('Отчёт не найден', 'danger')
+            return redirect(url_for('report', task_id=task_id))
+
+    report_data = report_obj.report_json
+    state = {
+        'query': task.prompt,
+        'report': report_data.get('content', ''),
+        'global_analysis': report_data.get('global_analysis', ''),
+        'russia_analysis': report_data.get('russia_analysis', ''),
+        'score': report_data.get('score', ''),
+    }
+    doc = generate_word_report(state)
+    buf = BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    filename = f'report_{task.task_number}.docx'
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=filename,
+        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
+
+
+@app.route('/profile')
+@login_required
+def profile():
+    return render_template('profile.html')
+
+
+@app.route('/api/task-report/<uuid:task_id>')
+@login_required
+def api_task_report(task_id):
+    keycloak_id = session['user'].get('keycloak_id')
+    with get_db_session() as db:
+        user = db.scalar(select(User).where(User.keycloak_id == keycloak_id))
+        if not user:
+            return jsonify({'error': 'Unauthorized'}), 401
+        report_obj = db.scalar(
+            select(ResearchReport).where(ResearchReport.task_id == task_id)
+        )
+        if not report_obj:
+            return jsonify({'error': 'Report not found'}), 404
+        return jsonify({'report': report_obj.report_json.get('content', '') if report_obj.report_json else ''})
+
+
+@app.route('/api/task-events/<uuid:task_id>')
+@login_required
+def api_task_events(task_id):
+    keycloak_id = session['user'].get('keycloak_id')
+    with get_db_session() as db:
+        user = db.scalar(select(User).where(User.keycloak_id == keycloak_id))
+        if not user:
+            return jsonify({'error': 'Unauthorized'}), 401
+
+        events = db.scalars(
+            select(AgentEvent)
+            .where(AgentEvent.task_id == task_id)
+            .order_by(AgentEvent.created_at.asc())
+        ).all()
+
+        result = []
+        for e in events:
+            result.append({
+                'id': str(e.id),
+                'agent_name': e.agent_name,
+                'event_type': e.event_type,
+                'message': e.message,
+                'created_at': e.created_at.isoformat() if e.created_at else None,
+                'elapsed_seconds': float(e.elapsed_seconds) if e.elapsed_seconds else None,
+            })
+        return jsonify(result)
+
+
+@app.route('/api/task-logs/<uuid:task_id>')
+@login_required
+def api_task_logs(task_id):
+    keycloak_id = session['user'].get('keycloak_id')
+    with get_db_session() as db:
+        user = db.scalar(select(User).where(User.keycloak_id == keycloak_id))
+        if not user:
+            return jsonify({'error': 'Unauthorized'}), 401
+        task = db.scalar(select(ResearchTask).where(ResearchTask.id == task_id))
+        if not task:
+            return jsonify({'error': 'Task not found'}), 404
+        return jsonify({'status': task.status.value, 'model_label': task.model_used or '-'})
 
 
 if __name__ == '__main__':

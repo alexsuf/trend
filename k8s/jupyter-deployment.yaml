@@ -44,6 +44,8 @@ spec:
         - containerPort: 8888
 
         env:
+        - name: TZ
+          value: "Europe/Moscow"
         - name: JUPYTER_TOKEN
           value: "debug-token"
 

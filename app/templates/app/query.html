@@ -14,17 +14,18 @@
             </div>
             <div class="mb-3">
                 <label class="form-label">Модель</label>
-                <select name="model_id" class="form-select" required>
-                    <option value="">-- Выберите модель --</option>
-                    {% for m in models %}
-                    <option value="{{ m.id }}" {{ 'selected' if request.form.get('model_id') == m.id }}>
-                        {{ m.provider.name if m.provider else '-' }} - {{ m.display_name or m.model_name }}
-                    </option>
-                    {% endfor %}
-                </select>
+                <input type="hidden" name="model_id" value="{{ default_model_id }}">
+                <p class="form-control-plaintext">
+                    <strong>{{ default_model_label }}</strong>
+                    {% if not default_model_id %}
+                    <span class="text-muted">(модель по умолчанию для вашей группы не настроена — обратитесь к администратору)</span>
+                    {% endif %}
+                </p>
             </div>
             <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-primary">Отправить запрос</button>
+                <button type="submit" class="btn btn-primary" {% if not default_model_id %}disabled{% endif %}>
+                    <i class="bi bi-play-circle"></i> Запустить исследование
+                </button>
                 <a href="/history" class="btn btn-secondary">Отмена</a>
             </div>
         </form>

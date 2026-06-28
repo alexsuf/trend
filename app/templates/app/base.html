@@ -67,7 +67,7 @@
         <div class="row">
             <nav class="col-md-2 d-none d-md-block sidebar">
                 <div class="brand">
-                    <i class="bi bi-mortarboard"></i> Trend Research
+                    <i class="bi bi-mortarboard"></i> Trend Research ({{ session.user.username }})
                 </div>
                 <nav class="nav flex-column">
                     <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="/dashboard">

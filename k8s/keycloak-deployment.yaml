@@ -19,6 +19,8 @@ spec:
         args:
         - start-dev
         env:
+        - name: TZ
+          value: "Europe/Moscow"
         - name: KC_DB
           value: postgres
         - name: KC_DB_URL

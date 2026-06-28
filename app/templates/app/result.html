@@ -1,0 +1,203 @@
+{% extends "app/base.html" %}
+
+{% block title %}Выполнение запроса - Trend Research{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Выполнение запроса: {{ prompt }}</h2>
+    <a href="/query" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Новый запрос
+    </a>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <h5 class="card-title">Использованная модель</h5>
+        <p class="card-text"><strong id="model-label">Загрузка...</strong></p>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-list-check"></i> Последовательность выполнения</span>
+        <span id="status-badge-main" class="badge bg-warning">Выполняется</span>
+    </div>
+    <div class="card-body">
+        <div id="events-sequence" class="events-sequence">
+            <div class="text-muted">Загрузка последовательности событий...</div>
+        </div>
+    </div>
+</div>
+
+<div id="report-area" style="display:none;">
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-file-earmark-text"></i> Итоговый отчёт</span>
+            <a id="download-btn" href="/download/{{ task_id }}" class="btn btn-success btn-sm">
+                <i class="bi bi-file-earmark-word"></i> Скачать Word
+            </a>
+        </div>
+        <div id="report-content" class="card-body" style="max-height: 700px; overflow-y: auto;">
+        </div>
+    </div>
+</div>
+
+<style>
+    .timeline-text {
+        font-family: Consolas, monospace;
+        font-size: 14px;
+        line-height: 1.6;
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-radius: 5px;
+        border: 1px solid #e9ecef;
+    }
+
+    .report-content h1, .report-content h2, .report-content h3 {
+        margin-top: 1.5rem;
+        margin-bottom: 1rem;
+        color: #333;
+    }
+
+    .report-content p {
+        margin-bottom: 1rem;
+    }
+
+    .report-content ul, .report-content ol {
+        margin-bottom: 1rem;
+        padding-left: 2rem;
+    }
+
+    .report-content li {
+        margin-bottom: 0.5rem;
+    }
+
+    .report-content code {
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 0.25rem;
+        padding: 0.2rem 0.4rem;
+        font-size: 0.875em;
+    }
+
+    .report-content pre {
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 0.375rem;
+        padding: 1rem;
+        overflow-x: auto;
+        margin-bottom: 1rem;
+    }
+
+    .report-content blockquote {
+        border-left: 4px solid #0d6efd;
+        padding-left: 1rem;
+        margin-bottom: 1rem;
+        color: #6c757d;
+    }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+    const taskId = '{{ task_id }}';
+    let isComplete = false;
+    let reportLoaded = false;
+
+    function updateStatusBadge(status, modelLabel) {
+        const badge = document.getElementById('status-badge-main');
+        const modelEl = document.getElementById('model-label');
+        if (modelEl && modelLabel) {
+            modelEl.textContent = modelLabel;
+        }
+        if (status === 'done') {
+            badge.className = 'badge bg-success';
+            badge.textContent = 'Завершено';
+            isComplete = true;
+            loadReport();
+        } else if (status === 'error') {
+            badge.className = 'badge bg-danger';
+            badge.textContent = 'Ошибка';
+            isComplete = true;
+        } else {
+            badge.className = 'badge bg-warning';
+            badge.textContent = 'Выполняется';
+        }
+    }
+
+    function loadReport() {
+        if (reportLoaded) return;
+
+        fetch('/api/task-report/' + taskId)
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.report) {
+                    document.getElementById('report-area').style.display = 'block';
+                    var content = document.getElementById('report-content');
+                    content.innerHTML = '<div class="report-content">' + marked.parse(data.report) + '</div>';
+                    reportLoaded = true;
+                }
+            })
+            .catch(function(error) {
+                console.error('Error loading report:', error);
+            });
+    }
+
+    function pollEvents() {
+        if (isComplete) return;
+
+        fetch('/api/task-events/' + taskId)
+            .then(function(response) { return response.json(); })
+            .then(function(events) {
+                fetch('/api/task-logs/' + taskId)
+                    .then(function(response) { return response.json(); })
+                    .then(function(logData) {
+                        updateStatusBadge(logData.status, logData.model_label);
+
+                        var container = document.getElementById('events-sequence');
+
+                        if (events && events.length > 0) {
+                            var html = '';
+                            events.forEach(function(event, index) {
+                                var badgeClass = 'bg-secondary';
+                                if (event.agent_name === 'PLANNER') badgeClass = 'bg-primary';
+                                else if (event.agent_name === 'SEARCH') badgeClass = 'bg-info';
+                                else if (event.agent_name === 'GLOBAL') badgeClass = 'bg-success';
+                                else if (event.agent_name === 'RUSSIA') badgeClass = 'bg-warning';
+                                else if (event.agent_name === 'REPORT') badgeClass = 'bg-dark';
+
+                                var time = '';
+                                if (event.elapsed_seconds != null) {
+                                    var secs = Math.floor(event.elapsed_seconds);
+                                    var m = Math.floor(secs / 60);
+                                    var s = secs % 60;
+                                    time = m + ':' + (s < 10 ? '0' : '') + s;
+                                } else {
+                                    time = new Date(event.created_at).toLocaleTimeString('ru-RU', {
+                                        hour: '2-digit', minute: '2-digit', second: '2-digit'
+                                    });
+                                }
+
+                                html += '[<span class="badge ' + badgeClass + '">' + event.agent_name + '</span> (' + time + ')]';
+                                if (index < events.length - 1) {
+                                    html += ' ==> ';
+                                }
+                            });
+                            container.innerHTML = '<div class="timeline-text">' + html + '</div>';
+                        } else {
+                            container.innerHTML = '<div class="text-muted">Ожидание начала выполнения...</div>';
+                        }
+                    });
+            })
+            .catch(function(error) {
+                console.error('Poll error:', error);
+            })
+            .finally(function() {
+                if (!isComplete) {
+                    setTimeout(pollEvents, 2000);
+                }
+            });
+    }
+
+    pollEvents();
+</script>
+{% endblock %}

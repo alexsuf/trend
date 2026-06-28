@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  trend:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      FLASK_SECRET_KEY: "super-secret-key-for-dev-change-in-prod"
+      DATABASE_URL: "postgresql://trend:secret@postgres.keycloak.svc.cluster.local:5432/trend"

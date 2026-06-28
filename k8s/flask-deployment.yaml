@@ -34,6 +34,8 @@ spec:
         - containerPort: 5000
  
         env:
+        - name: TZ
+          value: "Europe/Moscow"
         - name: FLASK_SECRET_KEY
           value: "super-secret-key-for-dev-change-in-prod"
         - name: KEYCLOAK_URL
@@ -46,5 +48,7 @@ spec:
           value: "trend-web"
         - name: KEYCLOAK_CLIENT_SECRET
           value: "bbWGIugaSj9ithjybqoNR5hXI9acjEel"
+        - name: PGTZ
+          value: "Europe/Moscow"
         - name: DATABASE_URL
           value: "postgresql://trend:secret@postgres.keycloak.svc.cluster.local:5432/trend"

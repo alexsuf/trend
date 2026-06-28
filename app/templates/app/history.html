@@ -38,13 +38,26 @@
                         <td>{{ task.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
                         <td>{{ task.finished_at.strftime('%d.%m.%Y %H:%M') if task.finished_at else '-' }}</td>
                         <td class="text-end">
-                            {% if task.status == 'done' %}
+                            {% if task.status.value == 'done' %}
                             <a href="/reports/{{ task.id }}" class="btn btn-sm btn-outline-primary">
                                 <i class="bi bi-file-earmark-text"></i> Отчёт
                             </a>
+                            {% elif task.status.value == 'error' %}
+                            <a href="/result/{{ task.id }}" class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-exclamation-triangle"></i> Ошибка
+                            </a>
                             {% else %}
-                            <span class="text-muted small">В процессе</span>
+                            <a href="/result/{{ task.id }}" class="btn btn-sm btn-outline-warning">
+                                <i class="bi bi-hourglass-split"></i> В процессе
+                            </a>
                             {% endif %}
+                            <a href="/logs/{{ task.id }}" class="btn btn-sm btn-outline-secondary ms-1" title="Лог событий">
+                                <i class="bi bi-list-ul"></i>
+                            </a>
+                            <button class="btn btn-sm btn-outline-danger ms-1" 
+                                    onclick="confirmDelete('{{ task.id }}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
                         </td>
                     </tr>
                     {% endfor %}
@@ -56,4 +69,16 @@
         {% endif %}
     </div>
 </div>
+
+<script>
+function confirmDelete(taskId) {
+    if (confirm('Удалить запрос #' + taskId + '? Отчёт тоже будет удалён.')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/history/delete/' + taskId;
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+</script>
 {% endblock %}

@@ -1,24 +1,19 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Trend Research App</title>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-</head>
-<body>
-    <div class="container">
-        <h1>Добро пожаловать в Trend Research App</h1>
-        
-        {% if user %}
-            <p>Вы вошли как: <strong>{{ user.name }}</strong></p>
-            <p>Email: {{ user.email }}</p>
-            <p>Роли: {{ user.roles | join(', ') }}</p>
-            <a href="/profile" class="btn btn-primary">Профиль</a>
-            <a href="/logout" class="btn btn-secondary">Выйти</a>
-        {% else %}
-            <p>Пожалуйста, войдите для доступа к приложению.</p>
-            <a href="/login" class="btn btn-primary">Войти через Keycloak</a>
-        {% endif %}
+{% extends "base.html" %}
+
+{% block title %}Trend Research - Главная{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-center" style="min-height: 70vh;">
+    <div class="text-center">
+        <div class="mb-4">
+            <i class="bi bi-mortarboard display-1 text-primary"></i>
+        </div>
+        <h1 class="display-5 fw-bold">Добро пожаловать в приложение по исследованию рынка</h1>
+        <p class="lead text-muted mt-3">Trend Research</p>
+        <p class="text-muted fs-5 mt-4">Пожалуйста, войдите для доступа к приложению</p>
+        <a href="/login" class="btn btn-primary btn-lg mt-3 px-5">
+            <i class="bi bi-box-arrow-in-right"></i> Войти через Keycloak
+        </a>
     </div>
-</body>
-</html>
+</div>
+{% endblock %}

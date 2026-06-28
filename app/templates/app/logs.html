@@ -1,0 +1,94 @@
+{% extends "app/base.html" %}
+
+{% block title %}Лог запроса #{{ task.task_number }} - Trend Research{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Лог запроса #{{ task.task_number }}</h2>
+    <div>
+        {% if task.status.value == 'done' %}
+        <a href="/reports/{{ task.id }}" class="btn btn-outline-primary btn-sm me-2">
+            <i class="bi bi-file-earmark-text"></i> Отчёт
+        </a>
+        {% else %}
+        <a href="/result/{{ task.id }}" class="btn btn-outline-warning btn-sm me-2">
+            <i class="bi bi-hourglass-split"></i> Выполнение
+        </a>
+        {% endif %}
+        <a href="/history" class="btn btn-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Назад
+        </a>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <h5 class="card-title">Запрос</h5>
+        <p class="card-text">{{ task.prompt }}</p>
+        <div class="d-flex gap-3">
+            <span class="badge status-{{ task.status.value }}">{{ task.status.value }}</span>
+            <small class="text-muted">Модель: {{ task.model_used or '-' }}</small>
+            <small class="text-muted">Создан: {{ task.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-list-ul"></i> Последовательность событий ({{ events|length }})
+    </div>
+    <div class="card-body p-0">
+        {% if events %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th style="width:80px">Время</th>
+                        <th style="width:140px">Агент</th>
+                        <th style="width:100px">Тип</th>
+                        <th>Сообщение</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in events %}
+                    <tr>
+                        <td class="text-nowrap font-monospace small">
+                            {% if e.elapsed_seconds is not none %}
+                                {{ (e.elapsed_seconds // 60)|int }}:{{ '%02d' % (e.elapsed_seconds % 60)|int }}
+                            {% elif e.created_at %}
+                                {{ e.created_at.strftime('%H:%M:%S') }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% set badge_class = 'bg-secondary' %}
+                            {% if 'PLANNER' in e.agent_name %}{% set badge_class = 'bg-primary' %}
+                            {% elif 'SEARCH' in e.agent_name %}{% set badge_class = 'bg-info' %}
+                            {% elif 'GLOBAL' in e.agent_name %}{% set badge_class = 'bg-success' %}
+                            {% elif 'RUSSIA' in e.agent_name %}{% set badge_class = 'bg-warning text-dark' %}
+                            {% elif 'REPORT' in e.agent_name %}{% set badge_class = 'bg-dark' %}
+                            {% elif 'SCORE' in e.agent_name %}{% set badge_class = 'bg-info text-dark' %}
+                            {% elif 'LLM' in e.agent_name %}{% set badge_class = 'bg-danger' %}
+                            {% elif 'BUILD' in e.agent_name %}{% set badge_class = 'bg-secondary' %}
+                            {% elif 'CONFIG' in e.agent_name %}{% set badge_class = 'bg-light text-dark' %}
+                            {% elif 'DONE' in e.agent_name %}{% set badge_class = 'bg-success' %}
+                            {% elif 'WORKFLOW' in e.agent_name %}{% set badge_class = 'bg-light text-dark' %}
+                            {% endif %}
+                            <span class="badge {{ badge_class }}">{{ e.agent_name }}</span>
+                        </td>
+                        <td><small class="text-muted">{{ e.event_type }}</small></td>
+                        <td>
+                            <small class="text-muted" style="white-space: pre-wrap; word-break: break-word;">{{ e.message[:500] if e.message else '-' }}{% if e.message and e.message|length > 500 %}...{% endif %}</small>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-muted text-center py-4">Нет событий</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

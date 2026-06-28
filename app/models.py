@@ -33,6 +33,7 @@ class User(Base):
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     research_tasks = relationship('ResearchTask', back_populates='user')
+    user_groups = relationship('UserGroup', back_populates='user')
 
 
 class ResearchTask(Base):
@@ -45,14 +46,16 @@ class ResearchTask(Base):
     status = Column(SAEnum(TaskStatus), nullable=False, default=TaskStatus.queued)
     priority = Column(BigInteger, default=0)
     model_used = Column(Text)
+    meta = Column(JSONB)
     error_message = Column(Text)
+    logs = Column(JSONB)
     created_at = Column(TIMESTAMP, server_default=func.now())
     started_at = Column(TIMESTAMP)
     finished_at = Column(TIMESTAMP)
 
     user = relationship('User', back_populates='research_tasks')
-    report = relationship('ResearchReport', back_populates='task', uselist=False)
-    events = relationship('AgentEvent', back_populates='task')
+    report = relationship('ResearchReport', back_populates='task', uselist=False, cascade='all, delete-orphan', passive_deletes=True)
+    events = relationship('AgentEvent', back_populates='task', cascade='all, delete-orphan', passive_deletes=True)
 
 
 class ResearchReport(Base):
@@ -65,7 +68,7 @@ class ResearchReport(Base):
     sources = Column(JSONB)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
-    task = relationship('ResearchTask', back_populates='report')
+    task = relationship('ResearchTask', back_populates='report', passive_deletes=True)
 
 
 class AgentEvent(Base):
@@ -78,6 +81,7 @@ class AgentEvent(Base):
     event_type = Column(Text, nullable=False)
     message = Column(Text)
     meta = Column(JSONB)
+    elapsed_seconds = Column(Numeric(10, 2))
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     task = relationship('ResearchTask', back_populates='events')
@@ -114,6 +118,61 @@ class LLMModel(Base):
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     provider = relationship('LLMProvider', back_populates='models')
+    group_models = relationship('GroupModel', back_populates='model')
+
+
+class LLMFallback(Base):
+    __tablename__ = 'llm_fallback'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    relation_number = Column(BigInteger, unique=True, server_default=text("nextval('llm_fallback_relation_number_seq'::regclass)"))
+    model_id = Column(UUID(as_uuid=True), ForeignKey('llm_models.id', ondelete='CASCADE'), nullable=False)
+    fallback_model_id = Column(UUID(as_uuid=True), ForeignKey('llm_models.id', ondelete='CASCADE'), nullable=False)
+    priority = Column(Integer, nullable=False, default=1)
+
+    model = relationship('LLMModel', foreign_keys=[model_id])
+    fallback_model = relationship('LLMModel', foreign_keys=[fallback_model_id])
+
+
+class LLMGroup(Base):
+    __tablename__ = 'llm_groups'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    group_number = Column(BigInteger, unique=True, server_default=text("nextval('llm_groups_group_number_seq'::regclass)"))
+    name = Column(Text, unique=True, nullable=False)
+    description = Column(Text)
+    enabled = Column(Boolean, nullable=False, default=True)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    user_groups = relationship('UserGroup', back_populates='group')
+    group_models = relationship('GroupModel', back_populates='group')
+
+
+class UserGroup(Base):
+    __tablename__ = 'user_groups'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    relation_number = Column(BigInteger, unique=True, server_default=text("nextval('user_groups_relation_number_seq'::regclass)"))
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    group_id = Column(UUID(as_uuid=True), ForeignKey('llm_groups.id', ondelete='CASCADE'), nullable=False)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    user = relationship('User', back_populates='user_groups')
+    group = relationship('LLMGroup', back_populates='user_groups')
+
+
+class GroupModel(Base):
+    __tablename__ = 'group_models'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    relation_number = Column(BigInteger, unique=True, server_default=text("nextval('group_models_relation_number_seq'::regclass)"))
+    group_id = Column(UUID(as_uuid=True), ForeignKey('llm_groups.id', ondelete='CASCADE'), nullable=False)
+    model_id = Column(UUID(as_uuid=True), ForeignKey('llm_models.id', ondelete='CASCADE'), nullable=False)
+    is_default = Column(Boolean, nullable=False, default=False)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    group = relationship('LLMGroup', back_populates='group_models')
+    model = relationship('LLMModel', back_populates='group_models')
 
 
 def init_db():

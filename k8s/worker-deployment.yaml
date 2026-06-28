@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trend-research-worker
+  namespace: trend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trend-research-worker
+  template:
+    metadata:
+      labels:
+        app: trend-research-worker
+    spec:
+      hostAliases:
+      - ip: 10.111.129.2
+        hostnames:
+        - "auth.local"
+        - "trend.local"
+      containers:
+      - name: trend-research-worker
+        image: alexsuf/trend
+        imagePullPolicy: Never
+        env:
+        - name: TZ
+          value: "Europe/Moscow"
+        - name: DATABASE_URL
+          value: "postgresql://trend:secret@postgres.keycloak.svc.cluster.local:5432/trend"
+        - name: PGTZ
+          value: "Europe/Moscow"
+        - name: LLM_BASE_URL
+          value: "https://bothub.chat/api/v2/openai/v1"
+        - name: LLM_MODEL
+          value: "gpt-4o-mini"
+        - name: SEARXNG_URL
+          value: "http://searxng.search.svc.cluster.local"
+        - name: WORKER_POLL_INTERVAL
+          value: "5"
+        command: ["python", "worker.py"]

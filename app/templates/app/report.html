@@ -24,32 +24,47 @@
 
 {% if report %}
 <div class="card">
-    <div class="card-header">
-        <i class="bi bi-file-earmark-text"></i> Результат
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-file-earmark-text"></i> Результат</span>
+        {% if task.status.value == 'done' %}
+        <a href="/download/{{ task.id }}" class="btn btn-success btn-sm">
+            <i class="bi bi-file-earmark-word"></i> Скачать Word
+        </a>
+        {% endif %}
     </div>
-    <div class="card-body">
+    <div class="card-body" style="max-height: 800px; overflow-y: auto;">
         {% if report.report_json.content %}
-        <div class="mb-3">
-            <h6>Содержимое</h6>
-            <div class="p-3 bg-light rounded" style="white-space: pre-wrap;">{{ report.report_json.content }}</div>
-        </div>
+        <div id="report-content"></div>
+        {% else %}
+        <p class="text-muted">Отчёт пуст</p>
         {% endif %}
 
         {% if report.sources %}
-        <div class="mb-3">
-            <h6>Источники</h6>
-            <ul class="list-group">
-                {% for source in report.sources %}
-                <li class="list-group-item">
-                    <a href="{{ source.url }}" target="_blank">{{ source.title or source.url }}</a>
-                </li>
-                {% endfor %}
-            </ul>
-        </div>
+        <hr>
+        <h6>Источники</h6>
+        <ul class="list-group">
+            {% for source in report.sources %}
+            <li class="list-group-item">
+                <a href="{{ source.url }}" target="_blank">{{ source.title or source.url }}</a>
+            </li>
+            {% endfor %}
+        </ul>
         {% endif %}
     </div>
 </div>
 {% else %}
 <div class="alert alert-info">Отчёт ещё не готов</div>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+{% if report and report.report_json.content %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const el = document.getElementById('report-content');
+    if (el) {
+        el.innerHTML = marked.parse({{ report.report_json.content | tojson | safe }});
+    }
+});
+</script>
 {% endif %}
 {% endblock %}

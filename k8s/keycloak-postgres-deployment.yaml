@@ -27,6 +27,10 @@ spec:
         - containerPort: 5432
 
         env:
+        - name: TZ
+          value: "Europe/Moscow"
+        - name: PGTZ
+          value: "Europe/Moscow"
         - name: POSTGRES_DB
           value: keycloak
 
