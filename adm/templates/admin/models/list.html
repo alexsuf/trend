@@ -24,6 +24,7 @@
                         <th>Макс. токенов</th>
                         <th>Temp</th>
                         <th>Приоритет</th>
+                        <th>Таймаут</th>
                         <th>Статус</th>
                         <th class="text-end">Действия</th>
                     </tr>
@@ -38,6 +39,7 @@
                         <td>{{ model.max_tokens or '-' }}</td>
                         <td>{{ model.temperature or '-' }}</td>
                         <td>{{ model.priority }}</td>
+                        <td>{{ model.timeout }} сек</td>
                         <td>
                             {% if model.enabled %}
                             <span class="badge bg-success">Включена</span>

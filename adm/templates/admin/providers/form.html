@@ -26,8 +26,8 @@
                 <input type="url" name="base_url" class="form-control" value="{{ provider.base_url if provider else '' }}" required>
             </div>
             <div class="mb-3">
-                <label class="form-label">API Key</label>
-                <input type="text" name="api_key" class="form-control" value="{{ provider.api_key if provider else '' }}">
+                <label class="form-label">API Key {% if provider %} <small class="text-muted">(оставьте пустым чтобы не менять)</small>{% endif %}</label>
+                <input type="password" name="api_key" class="form-control" value="{{ '' if provider else '' }}" placeholder="{% if provider %}•••••••• (оставьте пустым чтобы не менять){% endif %}" autocomplete="off">
             </div>
             <div class="mb-3 form-check">
                 <input type="checkbox" name="enabled" class="form-check-input" id="enabled" {% if not provider or provider.enabled %}checked{% endif %}>

@@ -79,6 +79,7 @@ class LLMModel(Base):
     temperature = Column(Numeric(3, 2))
     enabled = Column(Boolean, nullable=False, default=True)
     priority = Column(Integer, nullable=False, default=100)
+    timeout = Column(Integer, nullable=False, default=180)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     provider = relationship('LLMProvider', back_populates='models')
@@ -125,6 +126,13 @@ class AgentModel(Base):
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     model = relationship('LLMModel', back_populates='agent_models')
+
+
+class ResearchScore(Base):
+    __tablename__ = 'research_scores'
+
+    score = Column(Integer, primary_key=True)
+    color = Column(Text, nullable=False)
 
 
 def init_db():

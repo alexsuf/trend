@@ -1,0 +1,54 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Цвет оценок - Admin Panel{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Цвет оценок (research_scores)</h2>
+    <a href="/scores/create" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Добавить порог
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        {% if scores %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Score &lt;=</th>
+                        <th>Цвет</th>
+                        <th>Пример</th>
+                        <th class="text-end">Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in scores %}
+                    <tr>
+                        <td><strong>{{ s.score }}</strong></td>
+                        <td><code>{{ s.color }}</code></td>
+                        <td>
+                            <span class="badge" style="background-color: {{ s.color }}; width: 60px; display: inline-block;">&nbsp;</span>
+                        </td>
+                        <td class="text-end">
+                            <a href="/scores/edit/{{ s.score }}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <form action="/scores/delete/{{ s.score }}" method="post" class="d-inline" onsubmit="return confirm('Удалить порог {{ s.score }}?')">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-4">Нет порогов</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

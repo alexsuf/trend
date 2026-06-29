@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, select, func, delete
 from sqlalchemy.orm import Session, joinedload
 from models import (
     User, LLMGroup, UserGroup, LLMProvider, LLMModel,
-    GroupModel, LLMFallback, AgentModel, Base
+    GroupModel, LLMFallback, AgentModel, ResearchScore, Base
 )
 from sqlalchemy.dialects.postgresql import UUID
 
@@ -20,6 +20,8 @@ app.secret_key = app.config['SECRET_KEY']
 
 DATABASE_URL = os.environ.get('DATABASE_URL') or 'postgresql://trend:secret@postgres.keycloak.svc.cluster.local:5432/trend'
 engine = create_engine(DATABASE_URL)
+
+Base.metadata.create_all(engine)
 
 oauth = OAuth(app)
 
@@ -365,7 +367,9 @@ def providers_edit(provider_id):
             provider.name = request.form['name']
             provider.provider_type = request.form['provider_type']
             provider.base_url = request.form['base_url']
-            provider.api_key = request.form.get('api_key')
+            new_key = request.form.get('api_key', '')
+            if new_key:
+                provider.api_key = new_key
             provider.enabled = request.form.get('enabled') == 'on'
             db.commit()
             flash_message('Провайдер обновлён', 'success')
@@ -418,7 +422,8 @@ def models_create():
                 max_tokens=int(request.form['max_tokens']) if request.form.get('max_tokens') else None,
                 temperature=float(request.form['temperature']) if request.form.get('temperature') else None,
                 enabled=request.form.get('enabled') == 'on',
-                priority=int(request.form['priority']) if request.form.get('priority') else 100
+                priority=int(request.form['priority']) if request.form.get('priority') else 100,
+                timeout=int(request.form['timeout']) if request.form.get('timeout') else 180,
             )
             db.add(model)
             db.commit()
@@ -448,6 +453,7 @@ def models_edit(model_id):
             model.temperature = float(request.form['temperature']) if request.form.get('temperature') else None
             model.enabled = request.form.get('enabled') == 'on'
             model.priority = int(request.form['priority']) if request.form.get('priority') else 100
+            model.timeout = int(request.form['timeout']) if request.form.get('timeout') else 180
             db.commit()
             flash_message('Модель обновлена', 'success')
             return redirect(url_for('models_list'))
@@ -479,7 +485,8 @@ def group_models_list():
             select(GroupModel)
             .options(joinedload(GroupModel.group))
             .options(joinedload(GroupModel.model).joinedload(LLMModel.provider))
-            .order_by(GroupModel.relation_number)
+            .join(GroupModel.group)
+            .order_by(LLMGroup.name.asc(), GroupModel.is_default.desc())
         ).all()
     return render_template('admin/group_models/list.html', relations=relations, user=session.get('user'))
 
@@ -683,6 +690,65 @@ def agent_models_delete(rel_id):
         else:
             flash_message('Запись не найдена', 'danger')
     return redirect(url_for('agent_models_list'))
+
+
+# ===================== Research Scores =====================
+
+@app.route('/scores')
+@admin_required
+def scores_list():
+    with get_db_session() as db:
+        scores = db.scalars(select(ResearchScore).order_by(ResearchScore.score.asc())).all()
+    return render_template('admin/scores/list.html', scores=scores, user=session.get('user'))
+
+
+@app.route('/scores/create', methods=['GET', 'POST'])
+@admin_required
+def scores_create():
+    if request.method == 'POST':
+        with get_db_session() as db:
+            existing = db.scalar(select(ResearchScore).where(ResearchScore.score == int(request.form['score'])))
+            if existing:
+                existing.color = request.form['color']
+            else:
+                db.add(ResearchScore(score=int(request.form['score']), color=request.form['color']))
+            db.commit()
+        flash_message('Порог сохранён', 'success')
+        return redirect(url_for('scores_list'))
+    return render_template('admin/scores/form.html', user=session.get('user'), score=None)
+
+
+@app.route('/scores/edit/<int:score_val>', methods=['GET', 'POST'])
+@admin_required
+def scores_edit(score_val):
+    with get_db_session() as db:
+        score = db.scalar(select(ResearchScore).where(ResearchScore.score == score_val))
+        if not score:
+            flash_message('Запись не найдена', 'danger')
+            return redirect(url_for('scores_list'))
+
+        if request.method == 'POST':
+            score.score = int(request.form['score'])
+            score.color = request.form['color']
+            db.commit()
+            flash_message('Порог обновлён', 'success')
+            return redirect(url_for('scores_list'))
+
+    return render_template('admin/scores/form.html', user=session.get('user'), score=score)
+
+
+@app.route('/scores/delete/<int:score_val>', methods=['POST'])
+@admin_required
+def scores_delete(score_val):
+    with get_db_session() as db:
+        score = db.scalar(select(ResearchScore).where(ResearchScore.score == score_val))
+        if score:
+            db.delete(score)
+            db.commit()
+            flash_message('Порог удалён', 'success')
+        else:
+            flash_message('Запись не найдена', 'danger')
+    return redirect(url_for('scores_list'))
 
 
 if __name__ == '__main__':

@@ -39,11 +39,15 @@
                 </div>
             </div>
             <div class="row">
-                <div class="col-md-6 mb-3">
+                <div class="col-md-4 mb-3">
                     <label class="form-label">Приоритет</label>
                     <input type="number" name="priority" class="form-control" value="{{ model.priority if model else '100' }}">
                 </div>
-                <div class="col-md-6 mb-3">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Таймаут (сек)</label>
+                    <input type="number" name="timeout" class="form-control" value="{{ model.timeout if model else '180' }}" min="0">
+                </div>
+                <div class="col-md-4 mb-3">
                     <label class="form-label">&nbsp;</label>
                     <div class="form-check mt-4">
                         <input type="checkbox" name="enabled" class="form-check-input" id="enabled" {% if not model or model.enabled %}checked{% endif %}>

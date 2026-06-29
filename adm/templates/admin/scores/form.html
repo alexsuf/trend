@@ -1,0 +1,44 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Порог оценки - Admin Panel{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">{% if score %}Редактирование порога {{ score.score }}{% else %}Новый порог{% endif %}</h2>
+
+<div class="card">
+    <div class="card-body">
+        <form method="post">
+            <div class="mb-3">
+                <label class="form-label">Значение score (порог «меньше или равно»)</label>
+                <input type="number" name="score" class="form-control" value="{{ score.score if score else '' }}" required min="0" max="100">
+                <small class="text-muted">Оценки от предыдущего порога+1 до этого значения включительно получают этот цвет</small>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Цвет (HEX)</label>
+                    <input type="text" name="color" class="form-control" value="{{ score.color if score else '#555555' }}" required pattern="#[0-9a-fA-F]{6}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Предпросмотр</label>
+                    <div>
+                        <input type="color" id="color-preview" class="form-control form-control-color" value="{{ score.color if score else '#555555' }}" style="width: 60px; height: 38px;">
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+                <a href="/scores" class="btn btn-secondary">Отмена</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.querySelector('input[name="color"]').addEventListener('input', function() {
+    document.getElementById('color-preview').value = this.value;
+});
+document.getElementById('color-preview').addEventListener('input', function() {
+    document.querySelector('input[name="color"]').value = this.value;
+});
+</script>
+{% endblock %}
