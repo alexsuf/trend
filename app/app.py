@@ -12,7 +12,8 @@ from io import BytesIO
 from models import (
     User, ResearchTask, ResearchReport, TaskStatus,
     LLMModel, LLMProvider, LLMGroup, UserGroup,
-    GroupModel, LLMFallback, AgentEvent, Base
+    GroupModel, LLMFallback, AgentEvent, Base,
+    get_score_color
 )
 from task_store import task_store
 from word_generator import generate_word_report
@@ -186,10 +187,16 @@ def history():
             return redirect(url_for('logout'))
         tasks = db.scalars(
             select(ResearchTask)
+            .options(joinedload(ResearchTask.report))
             .where(ResearchTask.user_id == user.id)
             .order_by(ResearchTask.created_at.desc())
         ).all()
-    return render_template('app/history.html', tasks=tasks)
+        score_colors = {}
+        for t in tasks:
+            rpt = t.report
+            if rpt and rpt.score:
+                score_colors[str(t.id)] = get_score_color(rpt.score, db)
+    return render_template('app/history.html', tasks=tasks, score_colors=score_colors)
 
 
 @app.route('/history/delete/<uuid:task_id>', methods=['POST'])
@@ -263,6 +270,15 @@ def new_query():
                 return redirect(url_for('new_query'))
 
             fallback_models = []
+            if user_group:
+                group_model_ids = {
+                    str(gm.model_id)
+                    for gm in db.scalars(
+                        select(GroupModel).where(GroupModel.group_id == user_group.group_id)
+                    ).all()
+                }
+            else:
+                group_model_ids = set()
             fallbacks = db.scalars(
                 select(LLMFallback)
                 .options(
@@ -273,11 +289,15 @@ def new_query():
             ).all()
             for fb in fallbacks:
                 fb_model = fb.fallback_model
+                if group_model_ids and str(fb_model.id) not in group_model_ids:
+                    continue
                 fb_provider = fb_model.provider
+                fb_timeout = fb_model.timeout or 180
                 fallback_models.append({
                     'model_name': fb_model.model_name,
                     'api_key': fb_provider.api_key or os.environ.get('LLM_API_KEY', ''),
                     'base_url': fb_provider.base_url,
+                    'timeout': fb_timeout if fb_timeout > 0 else 180,
                 })
 
             task = ResearchTask(
@@ -355,7 +375,15 @@ def report(task_id):
         report_obj = db.scalar(
             select(ResearchReport).where(ResearchReport.task_id == task_id)
         )
-    return render_template('app/report.html', task=task, report=report_obj)
+        score_val = None
+        score_color = None
+        if report_obj and report_obj.report_json and report_obj.report_json.get('content'):
+            import re
+            m = re.search(r'Оценка устойчивости.*?(\d+(?:\.\d+)?)\s*из\s*10', report_obj.report_json['content'])
+            if m:
+                score_val = float(m.group(1))
+                score_color = get_score_color(score_val, db)
+    return render_template('app/report.html', task=task, report=report_obj, score_val=score_val, score_color=score_color)
 
 
 @app.route('/download/<uuid:task_id>')
@@ -379,6 +407,7 @@ def download(task_id):
         if not report_obj or not report_obj.report_json:
             flash_message('Отчёт не найден', 'danger')
             return redirect(url_for('report', task_id=task_id))
+        score_color = get_score_color(report_obj.score or 0, db) if report_obj.score else '#555555'
 
     report_data = report_obj.report_json
     state = {
@@ -387,6 +416,8 @@ def download(task_id):
         'global_analysis': report_data.get('global_analysis', ''),
         'russia_analysis': report_data.get('russia_analysis', ''),
         'score': report_data.get('score', ''),
+        'score_val': report_obj.score or 0,
+        'score_color': score_color,
     }
     doc = generate_word_report(state)
     buf = BytesIO()
@@ -420,7 +451,10 @@ def api_task_report(task_id):
         )
         if not report_obj:
             return jsonify({'error': 'Report not found'}), 404
-        return jsonify({'report': report_obj.report_json.get('content', '') if report_obj.report_json else ''})
+        content = report_obj.report_json.get('content', '') if report_obj.report_json else ''
+        score_val = report_obj.score or 0
+        score_color = get_score_color(score_val, db) if score_val else None
+        return jsonify({'report': content, 'score': score_val, 'score_color': score_color})
 
 
 @app.route('/api/task-events/<uuid:task_id>')

@@ -23,6 +23,17 @@
 </div>
 
 {% if report %}
+{% if score_val is not none %}
+<div class="card mb-3">
+    <div class="card-header">
+        <i class="bi bi-speedometer2"></i> Оценка устойчивости тренда
+    </div>
+    <div class="card-body text-center py-4">
+        <span id="score-number" style="font-size: 64px; font-weight: 800; line-height: 1;"></span>
+        <div style="font-size: 18px; color: #6c757d; margin-top: 4px;">из 10</div>
+    </div>
+</div>
+{% endif %}
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <span><i class="bi bi-file-earmark-text"></i> Результат</span>
@@ -64,6 +75,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (el) {
         el.innerHTML = marked.parse({{ report.report_json.content | tojson | safe }});
     }
+    {% if score_val is not none %}
+    const score = {{ score_val }};
+    const numEl = document.getElementById('score-number');
+    if (numEl) { numEl.textContent = score; numEl.style.color = '{{ score_color }}'; }
+    {% endif %}
 });
 </script>
 {% endif %}

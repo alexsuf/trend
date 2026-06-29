@@ -21,6 +21,7 @@
                         <th>Запрос</th>
                         <th>Модель</th>
                         <th>Статус</th>
+                        <th>Score</th>
                         <th>Создан</th>
                         <th>Завершён</th>
                         <th class="text-end">Действия</th>
@@ -34,6 +35,14 @@
                         <td>{{ task.model_used or '-' }}</td>
                         <td>
                             <span class="badge status-{{ task.status.value }}">{{ task.status.value }}</span>
+                        </td>
+                        <td>
+                            {% set rpt = task.report %}
+                            {% if rpt and rpt.score and rpt.score > 0 %}
+                                <strong style="color: {{ score_colors.get(task.id|string, '#000') }};">{{ rpt.score }}</strong>
+                            {% else %}
+                            -
+                            {% endif %}
                         </td>
                         <td>{{ task.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
                         <td>{{ task.finished_at.strftime('%d.%m.%Y %H:%M') if task.finished_at else '-' }}</td>

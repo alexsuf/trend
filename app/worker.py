@@ -28,6 +28,7 @@ def process_task(task_uuid, prompt, model_id, fallbacks):
         model_name = model.model_name
         
         provider_name = provider.name if provider else '-'
+        model_timeout = model.timeout if model.timeout and model.timeout > 0 else 180
         
         task = db_session.scalar(select(ResearchTask).where(ResearchTask.id == task_uuid))
         if task:
@@ -45,6 +46,7 @@ def process_task(task_uuid, prompt, model_id, fallbacks):
             task_id=str(task_uuid),
             fallback_models=fallbacks or [],
             db_engine=engine,
+            timeout=model_timeout,
         )
         
         with Session(engine) as db_session:
@@ -52,10 +54,22 @@ def process_task(task_uuid, prompt, model_id, fallbacks):
             if task:
                 task.status = TaskStatus.done
                 task.finished_at = func.now()
+                
+                score_val = 0
+                score_text = result.get('score', '')
+                if score_text:
+                    import re
+                    m = re.search(r'(\d+(?:\.\d+)?)\s*из\s*10', score_text)
+                    if m:
+                        score_val = int(round(float(m.group(1))))
+                
                 db_session.add(ResearchReport(
                     task_id=task_uuid,
                     report_json={
                         'content': result.get('report', ''),
+                        'global_analysis': result.get('global_analysis', ''),
+                        'russia_analysis': result.get('russia_analysis', ''),
+                        'score': result.get('score', ''),
                         'word_path': None,
                     },
                     sources=[
@@ -63,6 +77,7 @@ def process_task(task_uuid, prompt, model_id, fallbacks):
                         for r in (result.get('search_results', []) or []) + (result.get('russia_search_results', []) or [])
                         if r.get('url') and 'example' not in r.get('url', '')
                     ],
+                    score=score_val,
                 ))
                 db_session.commit()
         

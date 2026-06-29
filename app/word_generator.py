@@ -50,28 +50,40 @@ def generate_word_report(state):
 
     doc.add_page_break()
 
-    score_text = state.get("score", "")
-    if "Оценка устойчивости:" in score_text:
-        match = re.search(r"Оценка устойчивости:\s*(\d+(?:\.\d+)?)\s*из\s*10", score_text)
-        if not match:
-            match = re.search(r"(\d+(?:\.\d+)?)\s*/\s*10", score_text)
-        if not match:
+    score_val = state.get('score_val', 0)
+    score_color = state.get('score_color', '#555555')
+    score_text = state.get('score', '')
+    if score_val > 0 or score_text:
+        if score_val == 0 and score_text:
             match = re.search(r"(\d+(?:\.\d+)?)\s*из\s*10", score_text)
-        if match:
-            score_num = float(match.group(1))
+            if match:
+                score_val = int(round(float(match.group(1))))
+        if score_val > 0:
+            r_hex = int(score_color[1:3], 16)
+            g_hex = int(score_color[3:5], 16)
+            b_hex = int(score_color[5:7], 16)
+            rgb = RGBColor(r_hex, g_hex, b_hex)
             doc.add_heading("Оценка устойчивости тренда", level=1)
             score_p = doc.add_paragraph()
             score_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            r = score_p.add_run(f"{score_num:.0f} из 10")
+
+            shading = OxmlElement("w:shd")
+            shading.set(qn("w:fill"), score_color[1:])
+            shading.set(qn("w:val"), "clear")
+            score_p._p.get_or_add_pPr().append(shading)
+
+            pPr = score_p._p.get_or_add_pPr()
+            spacing = OxmlElement("w:spacing")
+            spacing.set(qn("w:before"), "240")
+            spacing.set(qn("w:after"), "240")
+            pPr.append(spacing)
+
+            r = score_p.add_run(f" {score_val} из 10 ")
             r.font.size = Pt(36)
             r.bold = True
-            if score_num >= 7:
-                r.font.color.rgb = RGBColor(0x27, 0xAE, 0x60)
-            elif score_num >= 4:
-                r.font.color.rgb = RGBColor(0xF3, 0x9C, 0x12)
-            else:
-                r.font.color.rgb = RGBColor(0xE7, 0x4C, 0x3C)
-            score_text_clean = re.sub(r"Оценка устойчивости:.*?\n", "", score_text).strip()
+            r.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+
+            score_text_clean = re.sub(r"Оценка устойчивости.*?\n", "", score_text).strip()
             _write_markdown_enhanced(doc, score_text_clean)
 
     doc.add_heading("Глобальный анализ", level=1)

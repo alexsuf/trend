@@ -69,8 +69,10 @@
                             {% elif 'RUSSIA' in e.agent_name %}{% set badge_class = 'bg-warning text-dark' %}
                             {% elif 'REPORT' in e.agent_name %}{% set badge_class = 'bg-dark' %}
                             {% elif 'SCORE' in e.agent_name %}{% set badge_class = 'bg-info text-dark' %}
-                            {% elif 'LLM' in e.agent_name %}{% set badge_class = 'bg-danger' %}
+                            {% elif 'LLM' in e.agent_name %}{% set badge_class = 'bg-secondary' %}
                             {% elif 'BUILD' in e.agent_name %}{% set badge_class = 'bg-secondary' %}
+                            {% elif 'SANITIZE' in e.agent_name %}{% set badge_class = 'bg-warning text-dark' %}
+                            {% elif 'FALLBACK' in e.agent_name %}{% set badge_class = 'bg-danger' %}
                             {% elif 'CONFIG' in e.agent_name %}{% set badge_class = 'bg-light text-dark' %}
                             {% elif 'DONE' in e.agent_name %}{% set badge_class = 'bg-success' %}
                             {% elif 'WORKFLOW' in e.agent_name %}{% set badge_class = 'bg-light text-dark' %}

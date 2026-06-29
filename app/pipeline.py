@@ -137,7 +137,8 @@ def call_llm(messages, logger: LogCapture, fallback_models=None, state: Research
     if fallback_models:
         for fm in fallback_models:
             if fm.get('model_name') and fm.get('model_name') != MODEL:
-                attempts.append((fm['model_name'], OpenAI(api_key=fm.get('api_key', ''), base_url=fm.get('base_url', ''), timeout=120.0)))
+                fb_timeout = float(fm.get('timeout', 180) or 180)
+                attempts.append((fm['model_name'], OpenAI(api_key=fm.get('api_key', ''), base_url=fm.get('base_url', ''), timeout=fb_timeout)))
 
     last_error = None
     for idx, (model_name, llm_client) in enumerate(attempts):
@@ -153,13 +154,18 @@ def call_llm(messages, logger: LogCapture, fallback_models=None, state: Research
             resp = llm_client.chat.completions.create(model=model_name, temperature=0, messages=messages)
             out = resp.choices[0].message.content
             logger.log("LLM OUTPUT", out)
+            if idx > 0:
+                MODEL = model_name
+                client = llm_client
+                logger.log("FALLBACK", f"Модель переключена на {model_name} до конца исследования")
             return out
         except Exception as e:
             last_error = e
             logger.log("LLM ERROR", f"Модель {model_name}: {e}")
             continue
 
-    raise last_error or RuntimeError("All LLM models failed")
+    logger.log("FALLBACK ERROR", "Нет доступной LLM-модели для fallback")
+    raise last_error or RuntimeError("Нет доступной LLM-модели для fallback")
 
 
 # =====================================================
@@ -322,16 +328,18 @@ def build_workflow(logger: LogCapture):
     return graph.compile()
 
 
-def run_pipeline(query: str, api_key: str, base_url: str, model: str, searxng_url: str, task_id: str = None, fallback_models=None, db_engine=None):
+def run_pipeline(query: str, api_key: str, base_url: str, model: str, searxng_url: str, task_id: str = None, fallback_models=None, db_engine=None, timeout=180):
     global client, MODEL, SEARXNG_URL
     api_key = api_key or os.environ.get('LLM_API_KEY', '')
     base_url = base_url or os.environ.get('LLM_BASE_URL', 'https://bothub.chat/api/v2/openai/v1')
     model = model or os.environ.get('LLM_MODEL', 'gpt-4o-mini')
+    if not timeout or timeout <= 0:
+        timeout = 180
     searxng_url = searxng_url or os.environ.get('SEARXNG_URL', 'http://searxng.search.svc.cluster.local')
 
     MODEL = model
     SEARXNG_URL = searxng_url
-    client = OpenAI(api_key=api_key, base_url=base_url, timeout=120.0)
+    client = OpenAI(api_key=api_key, base_url=base_url, timeout=float(timeout))
 
     logger = LogCapture(task_id=task_id, db_engine=db_engine)
     logger.log("CONFIG", f"Model: {model}\nBase URL: {base_url}\nSearXNG: {searxng_url}")
@@ -354,6 +362,10 @@ def run_pipeline(query: str, api_key: str, base_url: str, model: str, searxng_ur
             sources_for_field = result.get("russia_search_results", []) if field == "russia_analysis" else result.get("search_results", [])
             cleaned = _ensure_links_in_sources(cleaned, sources_for_field or result.get("search_results", []))
             result[field] = cleaned
+
+    score_text = result.get('score', '')
+    if score_text and not re.search(r'Оценка устойчивости.*?\d+\s*из\s*10', result['report']):
+        result['report'] = score_text + '\n\n' + result['report']
 
     logger.log("DONE", "Pipeline completed")
     return result, logger.lines

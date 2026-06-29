@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, String, Text, TIMESTAMP, BigInteger, JSON, ForeignKey, Enum as SAEnum, text, Boolean, Numeric, Integer
+from sqlalchemy import create_engine, Column, String, Text, TIMESTAMP, BigInteger, JSON, ForeignKey, Enum as SAEnum, text, Boolean, Numeric, Integer, select
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
@@ -66,6 +66,7 @@ class ResearchReport(Base):
     task_id = Column(UUID(as_uuid=True), ForeignKey('research_tasks.id', ondelete='CASCADE'), unique=True, nullable=False)
     report_json = Column(JSONB, nullable=False)
     sources = Column(JSONB)
+    score = Column(Integer, default=0)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     task = relationship('ResearchTask', back_populates='report', passive_deletes=True)
@@ -115,6 +116,7 @@ class LLMModel(Base):
     temperature = Column(Numeric(3, 2))
     enabled = Column(Boolean, nullable=False, default=True)
     priority = Column(Integer, nullable=False, default=100)
+    timeout = Column(Integer, nullable=False, default=180)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     provider = relationship('LLMProvider', back_populates='models')
@@ -173,6 +175,23 @@ class GroupModel(Base):
 
     group = relationship('LLMGroup', back_populates='group_models')
     model = relationship('LLMModel', back_populates='group_models')
+
+
+class ResearchScore(Base):
+    __tablename__ = 'research_scores'
+
+    score = Column(Integer, primary_key=True)
+    color = Column(Text, nullable=False)
+
+
+def get_score_color(score_val, db_session):
+    row = db_session.execute(
+        select(ResearchScore.color)
+        .where(ResearchScore.score >= score_val)
+        .order_by(ResearchScore.score.asc())
+        .limit(1)
+    ).scalar()
+    return row or '#555555'
 
 
 def init_db():
