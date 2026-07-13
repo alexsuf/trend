@@ -1,10 +1,155 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trend-db-schema
+  namespace: trend
+data:
+  schema.sql: |
+    CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
+    CREATE TYPE IF NOT EXISTS public.task_status AS ENUM ('queued', 'running', 'analyzing', 'formatting', 'done', 'error');
+    CREATE SEQUENCE IF NOT EXISTS users_user_number_seq START 1;
+    CREATE SEQUENCE IF NOT EXISTS research_tasks_task_number_seq START 1;
+    CREATE SEQUENCE IF NOT EXISTS research_reports_report_number_seq START 1;
+    CREATE SEQUENCE IF NOT EXISTS agent_events_event_number_seq START 1;
+    CREATE SEQUENCE IF NOT EXISTS llm_providers_provider_number_seq START 1;
+    CREATE SEQUENCE IF NOT EXISTS llm_models_model_number_seq START 1;
+    CREATE SEQUENCE IF NOT EXISTS llm_fallback_relation_number_seq START 1;
+    CREATE SEQUENCE IF NOT EXISTS llm_groups_group_number_seq START 1;
+    CREATE SEQUENCE IF NOT EXISTS user_groups_relation_number_seq START 1;
+    CREATE SEQUENCE IF NOT EXISTS group_models_relation_number_seq START 1;
+    CREATE SEQUENCE IF NOT EXISTS agent_models_relation_number_seq START 1;
+    CREATE TABLE IF NOT EXISTS public.users (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        user_number BIGINT UNIQUE DEFAULT nextval('users_user_number_seq'::regclass),
+        keycloak_id TEXT UNIQUE NOT NULL,
+        username TEXT,
+        email TEXT,
+        created_at TIMESTAMP DEFAULT now(),
+        is_admin BOOLEAN NOT NULL DEFAULT FALSE,
+        is_analyst BOOLEAN NOT NULL DEFAULT FALSE
+    );
+    CREATE INDEX IF NOT EXISTS idx_users_keycloak_id ON users(keycloak_id);
+    CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+    CREATE TABLE IF NOT EXISTS public.llm_providers (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        provider_number BIGINT UNIQUE DEFAULT nextval('llm_providers_provider_number_seq'::regclass),
+        name TEXT UNIQUE NOT NULL,
+        provider_type TEXT NOT NULL,
+        base_url TEXT NOT NULL,
+        api_key TEXT,
+        enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS public.llm_models (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        model_number BIGINT UNIQUE DEFAULT nextval('llm_models_model_number_seq'::regclass),
+        provider_id UUID NOT NULL REFERENCES llm_providers(id) ON DELETE CASCADE,
+        model_name TEXT NOT NULL,
+        display_name TEXT,
+        context_size INTEGER,
+        max_tokens INTEGER,
+        temperature NUMERIC(3,2),
+        enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        priority INTEGER NOT NULL DEFAULT 100,
+        created_at TIMESTAMP DEFAULT now(),
+        UNIQUE(provider_id, model_name)
+    );
+    CREATE INDEX IF NOT EXISTS idx_llm_models_provider_id ON llm_models(provider_id);
+    CREATE TABLE IF NOT EXISTS public.llm_groups (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        group_number BIGINT UNIQUE DEFAULT nextval('llm_groups_group_number_seq'::regclass),
+        name TEXT UNIQUE NOT NULL,
+        description TEXT,
+        enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS public.user_groups (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        relation_number BIGINT UNIQUE DEFAULT nextval('user_groups_relation_number_seq'::regclass),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        group_id UUID NOT NULL REFERENCES llm_groups(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT now(),
+        UNIQUE(user_id, group_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_groups_user_id ON user_groups(user_id);
+    CREATE INDEX IF NOT EXISTS idx_user_groups_group_id ON user_groups(group_id);
+    CREATE TABLE IF NOT EXISTS public.group_models (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        relation_number BIGINT UNIQUE DEFAULT nextval('group_models_relation_number_seq'::regclass),
+        group_id UUID NOT NULL REFERENCES llm_groups(id) ON DELETE CASCADE,
+        model_id UUID NOT NULL REFERENCES llm_models(id) ON DELETE CASCADE,
+        is_default BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_group_models_group_id ON group_models(group_id);
+    CREATE INDEX IF NOT EXISTS idx_group_models_model_id ON group_models(model_id);
+    CREATE TABLE IF NOT EXISTS public.llm_fallback (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        relation_number BIGINT UNIQUE DEFAULT nextval('llm_fallback_relation_number_seq'::regclass),
+        model_id UUID NOT NULL REFERENCES llm_models(id) ON DELETE CASCADE,
+        fallback_model_id UUID NOT NULL REFERENCES llm_models(id) ON DELETE CASCADE,
+        priority INTEGER NOT NULL DEFAULT 1
+    );
+    CREATE INDEX IF NOT EXISTS idx_llm_fallback_model_id ON llm_fallback(model_id);
+    CREATE TABLE IF NOT EXISTS public.agent_models (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        relation_number BIGINT UNIQUE DEFAULT nextval('agent_models_relation_number_seq'::regclass),
+        agent_name TEXT UNIQUE NOT NULL,
+        model_id UUID NOT NULL REFERENCES llm_models(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS public.research_tasks (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        task_number BIGINT UNIQUE DEFAULT nextval('research_tasks_task_number_seq'::regclass),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        prompt TEXT NOT NULL,
+        status TEXT DEFAULT 'queued' NOT NULL,
+        priority BIGINT DEFAULT 0,
+        model_used TEXT,
+        meta JSONB,
+        error_message TEXT,
+        logs JSONB,
+        created_at TIMESTAMP DEFAULT now(),
+        started_at TIMESTAMP,
+        finished_at TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_research_tasks_user_id ON research_tasks(user_id);
+    CREATE INDEX IF NOT EXISTS idx_research_tasks_status ON research_tasks(status);
+    CREATE INDEX IF NOT EXISTS idx_research_tasks_created_at ON research_tasks(created_at DESC);
+    CREATE TABLE IF NOT EXISTS public.research_reports (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        report_number BIGINT UNIQUE DEFAULT nextval('research_reports_report_number_seq'::regclass),
+        task_id UUID NOT NULL UNIQUE REFERENCES research_tasks(id) ON DELETE CASCADE,
+        report_json JSONB NOT NULL,
+        sources JSONB,
+        score INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_research_reports_task_id ON research_reports(task_id);
+    CREATE TABLE IF NOT EXISTS public.agent_events (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        event_number BIGINT UNIQUE DEFAULT nextval('agent_events_event_number_seq'::regclass),
+        task_id UUID NOT NULL REFERENCES research_tasks(id) ON DELETE CASCADE,
+        agent_name TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        message TEXT,
+        meta JSONB,
+        elapsed_seconds NUMERIC(10,2),
+        created_at TIMESTAMP DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_agent_events_task_id ON agent_events(task_id);
+    CREATE INDEX IF NOT EXISTS idx_agent_events_created_at ON agent_events(created_at);
+    CREATE TABLE IF NOT EXISTS public.research_scores (
+        score INTEGER PRIMARY KEY,
+        color TEXT NOT NULL
+    );
+    INSERT INTO research_scores (score, color) VALUES (5, '#555555'), (8, '#e67e22'), (100, '#1a6b2a') ON CONFLICT (score) DO NOTHING;
+---
 apiVersion: batch/v1
 kind: Job
-
 metadata:
   name: init-trend-db
-  namespace: keycloak
-
+  namespace: trend
 spec:
   ttlSecondsAfterFinished: 100
   template:
@@ -17,12 +162,21 @@ spec:
         - /bin/bash
         - -c
         - |
-          PGPASSWORD=secret psql -h postgres -U keycloak -d keycloak -c "CREATE DATABASE trend;" || true
-          PGPASSWORD=secret psql -h postgres -U keycloak -d keycloak -c "CREATE USER trend WITH PASSWORD 'secret';" || true
-          PGPASSWORD=secret psql -h postgres -U keycloak -d keycloak -c "GRANT ALL PRIVILEGES ON DATABASE trend TO trend;"
-          PGPASSWORD=secret psql -h postgres -U keycloak -d keycloak -c "GRANT ALL ON SCHEMA public TO trend;"
-          PGPASSWORD=secret psql -h postgres -U keycloak -d keycloak -c "ALTER DATABASE trend OWNER TO trend;"
-          PGPASSWORD=secret psql -h postgres -U keycloak -d keycloak -c "ALTER SCHEMA public OWNER TO trend;"
+          PGPASSWORD=secret psql -h postgres.keycloak.svc.cluster.local -U keycloak -d keycloak -c "CREATE DATABASE trend;" || true
+          PGPASSWORD=secret psql -h postgres.keycloak.svc.cluster.local -U keycloak -d keycloak -c "CREATE USER trend WITH PASSWORD 'secret';" || true
+          PGPASSWORD=secret psql -h postgres.keycloak.svc.cluster.local -U keycloak -d keycloak -c "GRANT ALL PRIVILEGES ON DATABASE trend TO trend;" || true
+          PGPASSWORD=secret psql -h postgres.keycloak.svc.cluster.local -U keycloak -d keycloak -c "GRANT ALL ON SCHEMA public TO trend;" || true
+          PGPASSWORD=secret psql -h postgres.keycloak.svc.cluster.local -U keycloak -d keycloak -c "ALTER DATABASE trend OWNER TO trend;" || true
+          PGPASSWORD=secret psql -h postgres.keycloak.svc.cluster.local -U keycloak -d keycloak -c "ALTER SCHEMA public OWNER TO trend;" || true
+          PGPASSWORD=secret psql -h postgres.keycloak.svc.cluster.local -U trend -d trend -f /sql/schema.sql
+          echo "Schema applied successfully"
         env:
         - name: PGPASSWORD
           value: secret
+        volumeMounts:
+        - name: schema
+          mountPath: /sql
+      volumes:
+      - name: schema
+        configMap:
+          name: trend-db-schema

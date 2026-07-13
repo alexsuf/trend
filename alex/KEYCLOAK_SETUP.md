@@ -37,7 +37,7 @@ bash keycloak-create-admin-client.sh
 ```bash
 cd k8s
 python keycloak_setup_admin_client.py \
-    --host auth.local \
+    --host auth.trend-app \
     --realm trend \
     --admin-user admin \
     --admin-pass secret \

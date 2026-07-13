@@ -9,7 +9,7 @@ spec:
   ingressClassName: nginx
 
   rules:
-  - host: search.local
+  - host: search.trend-app
 
     http:
       paths:

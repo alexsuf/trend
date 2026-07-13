@@ -4,8 +4,8 @@
 kubectl get pods -n keycloak
 
 Сделать логический дамп:
-kubectl exec -n keycloak postgres-754c6fb57-cn5s7 -- pg_dump -U keycloak keycloak > keycloak.sql
-kubectl exec -n keycloak postgres-754c6fb57-cn5s7 -- pg_dump -U trend trend > trend.sql
+kubectl exec -n keycloak postgres-5fbc8fff46-4nh7b -- pg_dump -U keycloak keycloak > keycloak.sql
+kubectl exec -n keycloak postgres-5fbc8fff46-4nh7b -- pg_dump -U trend trend > trend.sql
 
 Восстановление на другом кластере:
 Копируем файл в под:
@@ -17,3 +17,6 @@ kubectl exec -it -n trend postgres-xxxxxxxx -- psql -U keycloak -d keycloak -f /
 Преимущества:
 Сохраняются все пользователи, роли, клиенты, realm'ы и настройки Keycloak.
 При этом перенос не зависит от внутреннего формата хранения данных PostgreSQL.
+
+
+kubectl exec -n keycloak deploy/postgres -- pg_dump -U keycloak -d trend --schema-only > base.sql

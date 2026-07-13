@@ -9,7 +9,7 @@ spec:
   ingressClassName: nginx
 
   rules:
-  - host: adm.local
+  - host: adm.trend-app
 
     http:
       paths:

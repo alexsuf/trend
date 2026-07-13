@@ -30,7 +30,7 @@ Base.metadata.create_all(engine)
 
 oauth = OAuth(app)
 
-KEYCLOAK_URL = os.environ.get('KEYCLOAK_URL') or 'http://auth.local'
+KEYCLOAK_URL = os.environ.get('KEYCLOAK_URL') or 'http://auth.trend-app'
 KEYCLOAK_INTERNAL_URL = os.environ.get('KEYCLOAK_INTERNAL_URL') or 'http://keycloak.keycloak.svc.cluster.local'
 KEYCLOAK_REALM = os.environ.get('KEYCLOAK_REALM') or 'trend'
 KEYCLOAK_CLIENT_ID = os.environ.get('KEYCLOAK_CLIENT_ID') or 'trend-web'
@@ -111,6 +111,7 @@ def callback():
             'roles': realm_roles,
             'keycloak_id': keycloak_id,
             'token': access_token,
+            'id_token': token.get('id_token', ''),
         }
 
         return redirect(url_for('dashboard'))
@@ -120,12 +121,27 @@ def callback():
 
 @app.route('/logout')
 def logout():
+    id_token = None
+    if 'user' in session:
+        id_token = session['user'].get('id_token')
     session.clear()
+
+    params = {}
+    if id_token:
+        params['id_token_hint'] = id_token
+    params['post_logout_redirect_uri'] = url_for('logout_done', _external=True)
+
+    from urllib.parse import urlencode
     logout_url = (
         f'{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/logout'
-        f'?redirect_uri={url_for("index", _external=True)}'
+        f'?{urlencode(params)}'
     )
     return redirect(logout_url)
+
+
+@app.route('/logout-done')
+def logout_done():
+    return render_template('logout.html', redirect_url=url_for('index'))
 
 
 @app.route('/dashboard')
@@ -293,8 +309,9 @@ def new_query():
                     continue
                 fb_provider = fb_model.provider
                 fb_timeout = fb_model.timeout or 180
+                provider_label = fb_provider.name if fb_provider else '?'
                 fallback_models.append({
-                    'model_name': fb_model.model_name,
+                    'model_name': f'{provider_label} - {fb_model.model_name}',
                     'api_key': fb_provider.api_key or os.environ.get('LLM_API_KEY', ''),
                     'base_url': fb_provider.base_url,
                     'timeout': fb_timeout if fb_timeout > 0 else 180,
@@ -314,6 +331,75 @@ def new_query():
     return render_template('app/query.html',
         default_model_id=default_model_id,
         default_model_label=default_model_label)
+
+
+@app.route('/models')
+@login_required
+def models_list():
+    keycloak_id = session['user'].get('keycloak_id')
+    with get_db_session() as db:
+        user = db.scalar(select(User).where(User.keycloak_id == keycloak_id))
+        if not user:
+            return redirect(url_for('logout'))
+
+        user_group = db.scalar(select(UserGroup).where(UserGroup.user_id == user.id))
+        model_map = {}
+        default_model_id = None
+        if user_group:
+            gms = db.scalars(
+                select(GroupModel)
+                .options(joinedload(GroupModel.model).joinedload(LLMModel.provider))
+                .where(GroupModel.group_id == user_group.group_id)
+                .order_by(GroupModel.relation_number)
+            ).all()
+            for gm in gms:
+                if gm.model and gm.model.enabled:
+                    mid = str(gm.model.id)
+                    model_map[mid] = gm.model
+                    if gm.is_default:
+                        default_model_id = mid
+            if not default_model_id and model_map:
+                default_model_id = next(iter(model_map))
+
+        ordered_models = []
+        visited = set()
+        if default_model_id and model_map:
+            ordered_models.append(model_map[default_model_id])
+            visited.add(default_model_id)
+
+            all_fallbacks = db.scalars(
+                select(LLMFallback)
+                .options(
+                    joinedload(LLMFallback.model),
+                    joinedload(LLMFallback.fallback_model).joinedload(LLMModel.provider)
+                )
+                .where(LLMFallback.model_id.in_([m.id for m in model_map.values()]))
+                .order_by(LLMFallback.priority)
+            ).all()
+
+            fallback_by_model = {}
+            for fb in all_fallbacks:
+                mid = str(fb.model_id)
+                if mid not in fallback_by_model:
+                    fallback_by_model[mid] = []
+                fb_mid = str(fb.fallback_model.id) if fb.fallback_model else None
+                if fb_mid and fb_mid in model_map:
+                    fallback_by_model[mid].append(fb_mid)
+
+            chain = [default_model_id]
+            for mid in chain:
+                if mid in fallback_by_model:
+                    for fb_mid in fallback_by_model[mid]:
+                        if fb_mid not in visited:
+                            chain.append(fb_mid)
+                            ordered_models.append(model_map[fb_mid])
+                            visited.add(fb_mid)
+
+            for mid, model in model_map.items():
+                if mid not in visited:
+                    ordered_models.append(model)
+
+    return render_template('app/models.html', models=ordered_models)
 
 
 @app.route('/result/<uuid:task_id>')

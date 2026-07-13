@@ -34,6 +34,6 @@ spec:
         - name: KEYCLOAK_ADMIN_PASSWORD
           value: secret
         - name: KC_HOSTNAME
-          value: auth.local
+          value: auth.trend-app
         ports:
         - containerPort: 8080

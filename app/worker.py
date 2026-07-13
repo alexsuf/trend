@@ -2,13 +2,15 @@ import os
 import time
 from sqlalchemy import create_engine, select, func
 from sqlalchemy.orm import Session, joinedload
-from models import ResearchTask, ResearchReport, TaskStatus, LLMModel, LLMFallback
+from models import ResearchTask, ResearchReport, TaskStatus, LLMModel, LLMFallback, Base
 from pipeline import run_pipeline
 from task_store import task_store
 
 
 DATABASE_URL = os.environ.get('DATABASE_URL') or 'postgresql://trend:secret@postgres.keycloak.svc.cluster.local:5432/trend'
 engine = create_engine(DATABASE_URL)
+
+Base.metadata.create_all(engine)
 
 
 def process_task(task_uuid, prompt, model_id, fallbacks):
@@ -95,7 +97,7 @@ def process_task(task_uuid, prompt, model_id, fallbacks):
 
 
 def worker_loop():
-    poll_interval = int(os.environ.get('WORKER_POLL_INTERVAL', '5'))
+    poll_interval = int(os.environ.get('WORKER_POLL_INTERVAL', '2'))
     
     while True:
         try:

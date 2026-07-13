@@ -14,7 +14,7 @@ spec:
   ingressClassName: nginx
 
   rules:
-  - host: trend.local
+  - host: web.trend-app
 
     http:
       paths:

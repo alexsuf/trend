@@ -5,7 +5,7 @@ NAMESPACE="${NAMESPACE:-keycloak}"
 REALM="${REALM:-trend}"
 ADMIN_USER="${ADMIN_USER:-admin}"
 ADMIN_PASS="${ADMIN_PASS:-secret}"
-KEYCLOAK_HOST="${KEYCLOAK_HOST:-auth.local}"
+KEYCLOAK_HOST="${KEYCLOAK_HOST:-auth.trend-app}"
 OUTPUT_DIR="${OUTPUT_DIR:-.}"
 
 POD=$(kubectl get pods -n "$NAMESPACE" -l app=keycloak -o jsonpath='{.items[0].metadata.name}')

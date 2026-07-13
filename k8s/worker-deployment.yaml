@@ -16,8 +16,8 @@ spec:
       hostAliases:
       - ip: 10.111.129.2
         hostnames:
-        - "auth.local"
-        - "trend.local"
+        - "auth.trend-app"
+        - "web.trend-app"
       containers:
       - name: trend-research-worker
         image: alexsuf/trend
@@ -36,5 +36,5 @@ spec:
         - name: SEARXNG_URL
           value: "http://searxng.search.svc.cluster.local"
         - name: WORKER_POLL_INTERVAL
-          value: "5"
+          value: "2"
         command: ["python", "worker.py"]

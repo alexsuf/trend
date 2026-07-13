@@ -1,0 +1,39 @@
+{% extends "app/base.html" %}
+
+{% block title %}Доступные модели - Trend Research{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Доступные LLM-модели</h2>
+    <a href="/query" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Новый запрос
+    </a>
+</div>
+
+{% if models %}
+{% for m in models %}
+<div class="card mb-3{% if loop.first %} border-primary{% endif %}">
+    <div class="card-body">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                {% if loop.first %}<span class="badge bg-primary me-2">Основная</span>{% endif %}
+                <strong>{{ m.provider.name if m.provider else '-' }} - {{ m.display_name or m.model_name }}</strong>
+                {% if m.display_name %}<br><small class="text-muted">{{ m.model_name }}</small>{% endif %}
+            </div>
+            <div class="col-md-2">
+                <span class="badge bg-info">{{ m.provider.name if m.provider else '-' }}</span>
+            </div>
+            <div class="col-md-2">
+                <small class="text-muted">Контекст: {{ m.context_size or '-' }}<br>Токены: {{ m.max_tokens or '-' }}</small>
+            </div>
+            <div class="col-md-2 text-end">
+                <small class="text-muted">Таймаут: {{ m.timeout }} сек{% if m.temperature %}<br>Temp: {{ m.temperature }}{% endif %}</small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="alert alert-warning">Нет доступных моделей. Обратитесь к администратору для назначения группы LLM.</div>
+{% endif %}
+{% endblock %}

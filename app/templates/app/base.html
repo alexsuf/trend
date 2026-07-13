@@ -79,6 +79,9 @@
                     <a class="nav-link {% if request.endpoint == 'new_query' %}active{% endif %}" href="/query">
                         <i class="bi bi-plus-circle"></i> Новый запрос
                     </a>
+                    <a class="nav-link {% if request.endpoint == 'models_list' %}active{% endif %}" href="/models">
+                        <i class="bi bi-cpu"></i> Модели
+                    </a>
                     <div class="mt-auto pt-3">
                         <a class="nav-link text-warning" href="/logout">
                             <i class="bi bi-box-arrow-right"></i> Выйти

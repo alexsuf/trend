@@ -9,7 +9,7 @@ spec:
   ingressClassName: nginx
 
   rules:
-  - host: auth.local
+  - host: auth.trend-app
 
     http:
       paths:
