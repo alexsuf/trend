@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trend-adm
+  namespace: trend
+spec:
+  replicas: {{ .Values.adm.replicas }}
+  selector:
+    matchLabels:
+      app: trend-adm
+  template:
+    metadata:
+      labels:
+        app: trend-adm
+    spec:
+      hostAliases:
+        - ip: 10.111.129.2
+          hostnames:
+            - "auth.trend-app"
+            - "web.trend-app"
+            - "adm.trend-app"
+      containers:
+        - name: trend-adm
+          image: "{{ .Values.adm.image.repository }}:{{ .Values.adm.image.tag }}"
+          imagePullPolicy: {{ .Values.adm.image.pullPolicy }}
+          ports:
+            - containerPort: 5000
+          env:
+            - name: TZ
+              value: {{ .Values.adm.env.TZ | quote }}
+            - name: FLASK_SECRET_KEY
+              value: {{ .Values.adm.env.FLASK_SECRET_KEY | quote }}
+            - name: KEYCLOAK_URL
+              value: {{ .Values.adm.env.KEYCLOAK_URL | quote }}
+            - name: KEYCLOAK_INTERNAL_URL
+              value: {{ .Values.adm.env.KEYCLOAK_INTERNAL_URL | quote }}
+            - name: KEYCLOAK_REALM
+              value: {{ .Values.adm.env.KEYCLOAK_REALM | quote }}
+            - name: KEYCLOAK_CLIENT_ID
+              value: {{ .Values.adm.env.KEYCLOAK_CLIENT_ID | quote }}
+            - name: KEYCLOAK_CLIENT_SECRET
+              value: {{ .Values.adm.env.KEYCLOAK_CLIENT_SECRET | quote }}
+            - name: PGTZ
+              value: {{ .Values.adm.env.PGTZ | quote }}
+            - name: KEYCLOAK_ADMIN_USER
+              value: {{ .Values.adm.env.KEYCLOAK_ADMIN_USER | quote }}
+            - name: KEYCLOAK_ADMIN_PASS
+              value: {{ .Values.adm.env.KEYCLOAK_ADMIN_PASS | quote }}
+            - name: DATABASE_URL
+              value: {{ .Values.adm.env.DATABASE_URL | quote }}
+          resources:
+{{ toYaml .Values.adm.resources | indent 12 }}

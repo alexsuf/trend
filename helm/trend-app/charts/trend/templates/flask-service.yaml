@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: trend-research
+  namespace: trend
+spec:
+  selector:
+    app: trend-research
+  ports:
+    - port: {{ .Values.service.flask.port }}
+      targetPort: {{ .Values.service.flask.targetPort }}
+  type: {{ .Values.service.flask.type }}

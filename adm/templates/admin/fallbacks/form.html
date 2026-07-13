@@ -1,9 +1,9 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Добавить фолбэк - Admin Panel{% endblock %}
+{% block title %}{% if relation %}Редактировать фолбэк{% else %}Добавить фолбэк{% endif %} - Admin Panel{% endblock %}
 
 {% block content %}
-<h2 class="mb-4">Добавить фолбэк</h2>
+<h2 class="mb-4">{% if relation %}Редактировать фолбэк{% else %}Добавить фолбэк{% endif %}</h2>
 
 <div class="card">
     <div class="card-body">
@@ -13,7 +13,7 @@
                 <select name="model_id" class="form-select" required>
                     <option value="">-- Выберите --</option>
                     {% for m in models %}
-                    <option value="{{ m.id }}">{{ m.provider.name if m.provider else '-' }} - {{ m.display_name or m.model_name }}</option>
+                    <option value="{{ m.id }}" {% if relation and relation.model_id == m.id %}selected{% endif %}>{{ m.provider.name if m.provider else '-' }} - {{ m.display_name or m.model_name }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -22,7 +22,7 @@
                 <select name="fallback_model_id" class="form-select" required>
                     <option value="">-- Выберите --</option>
                     {% for m in models %}
-                    <option value="{{ m.id }}">{{ m.provider.name if m.provider else '-' }} - {{ m.display_name or m.model_name }}</option>
+                    <option value="{{ m.id }}" {% if relation and relation.fallback_model_id == m.id %}selected{% endif %}>{{ m.provider.name if m.provider else '-' }} - {{ m.display_name or m.model_name }}</option>
                     {% endfor %}
                 </select>
             </div>

@@ -7,7 +7,7 @@ from functools import wraps
 from datetime import datetime
 from config import Config
 from sqlalchemy import create_engine, select, func, delete
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 from models import (
     User, LLMGroup, UserGroup, LLMProvider, LLMModel,
     GroupModel, LLMFallback, AgentModel, ResearchScore, Base
@@ -535,12 +535,58 @@ def group_models_create():
     return render_template('admin/group_models/form.html', user=session.get('user'), relation=None, groups=groups, models=models)
 
 
+@app.route('/group-models/edit/<uuid:rel_id>', methods=['GET', 'POST'])
+@admin_required
+def group_models_edit(rel_id):
+    with get_db_session() as db:
+        relation = db.scalar(select(GroupModel).where(GroupModel.id == rel_id))
+        if not relation:
+            flash_message('Связь не найдена', 'danger')
+            return redirect(url_for('group_models_list'))
+
+        groups = db.scalars(select(LLMGroup).order_by(LLMGroup.name)).all()
+        models = db.scalars(
+            select(LLMModel)
+            .options(joinedload(LLMModel.provider))
+            .order_by(LLMModel.display_name)
+        ).all()
+
+        if request.method == 'POST':
+            with get_db_session() as db:
+                group_id = request.form['group_id']
+                model_id = request.form['model_id']
+                is_default = request.form.get('is_default') == 'on'
+
+                if is_default:
+                    existing_defaults = db.scalars(
+                        select(GroupModel).where(GroupModel.group_id == group_id, GroupModel.is_default == True)
+                    ).all()
+                    for d in existing_defaults:
+                        if d.id != relation.id:
+                            d.is_default = False
+
+                relation.group_id = group_id
+                relation.model_id = model_id
+                relation.is_default = is_default
+                db.commit()
+                flash_message('Связь обновлена', 'success')
+            return redirect(url_for('group_models_list'))
+
+    return render_template('admin/group_models/edit.html', user=session.get('user'), relation=relation, groups=groups, models=models)
+
+
 @app.route('/group-models/delete/<uuid:rel_id>', methods=['POST'])
 @admin_required
 def group_models_delete(rel_id):
     with get_db_session() as db:
         relation = db.scalar(select(GroupModel).where(GroupModel.id == rel_id))
         if relation:
+            if relation.is_default:
+                remaining = db.scalars(
+                    select(GroupModel).where(GroupModel.group_id == relation.group_id, GroupModel.id != relation.id).order_by(GroupModel.relation_number)
+                ).all()
+                if remaining:
+                    remaining[0].is_default = True
             db.delete(relation)
             db.commit()
             flash_message('Связь удалена', 'success')
@@ -557,10 +603,21 @@ def fallbacks_list():
     with get_db_session() as db:
         relations = db.scalars(
             select(LLMFallback)
-            .options(joinedload(LLMFallback.model).joinedload(LLMModel.provider))
-            .options(joinedload(LLMFallback.fallback_model).joinedload(LLMModel.provider))
+            .options(
+                selectinload(LLMFallback.model).selectinload(LLMModel.provider),
+                selectinload(LLMFallback.model).selectinload(LLMModel.group_models).selectinload(GroupModel.group),
+                selectinload(LLMFallback.fallback_model).selectinload(LLMModel.provider)
+            )
             .order_by(LLMFallback.relation_number)
         ).all()
+    def get_group_name(r):
+        try:
+            if r.model and r.model.group_models:
+                return r.model.group_models[0].group.name
+        except:
+            pass
+        return ''
+    relations = sorted(relations, key=get_group_name)
     return render_template('admin/fallbacks/list.html', relations=relations, user=session.get('user'))
 
 
@@ -591,6 +648,33 @@ def fallbacks_create():
         return redirect(url_for('fallbacks_list'))
 
     return render_template('admin/fallbacks/form.html', user=session.get('user'), relation=None, models=models)
+
+
+@app.route('/fallbacks/edit/<uuid:rel_id>', methods=['GET', 'POST'])
+@admin_required
+def fallbacks_edit(rel_id):
+    with get_db_session() as db:
+        relation = db.scalar(select(LLMFallback).where(LLMFallback.id == rel_id))
+        if not relation:
+            flash_message('Фолбэк не найден', 'danger')
+            return redirect(url_for('fallbacks_list'))
+
+        models = db.scalars(
+            select(LLMModel)
+            .options(joinedload(LLMModel.provider))
+            .order_by(LLMModel.display_name)
+        ).all()
+
+        if request.method == 'POST':
+            with get_db_session() as db:
+                relation.model_id = request.form['model_id']
+                relation.fallback_model_id = request.form['fallback_model_id']
+                relation.priority = int(request.form.get('priority', 1))
+                db.commit()
+                flash_message('Фолбэк обновлён', 'success')
+            return redirect(url_for('fallbacks_list'))
+
+    return render_template('admin/fallbacks/form.html', user=session.get('user'), relation=relation, models=models)
 
 
 @app.route('/fallbacks/delete/<uuid:rel_id>', methods=['POST'])

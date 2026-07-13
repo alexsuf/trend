@@ -11,41 +11,37 @@
 </div>
 
 <div class="card">
-    <div class="card-body">
-        {% if relations %}
-        <div class="table-responsive">
-            <table class="table table-hover align-middle">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Основная модель</th>
-                        <th>Фолбэк модель</th>
-                        <th>Приоритет</th>
-                        <th class="text-end">Действия</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for rel in relations %}
-                    <tr>
-                        <td>{{ rel.relation_number }}</td>
-                        <td><span class="badge bg-warning">{{ rel.model.provider.name if rel.model and rel.model.provider else '-' }} - {{ rel.model.display_name or rel.model.model_name if rel.model else rel.model_id }}</span></td>
-                        <td><span class="badge bg-success">{{ rel.fallback_model.provider.name if rel.fallback_model and rel.fallback_model.provider else '-' }} - {{ rel.fallback_model.display_name or rel.fallback_model.model_name if rel.fallback_model else rel.fallback_model_id }}</span></td>
-                        <td>{{ rel.priority }}</td>
-                        <td class="text-end">
-                            <form action="/fallbacks/delete/{{ rel.id }}" method="post" class="d-inline" onsubmit="return confirm('Удалить фолбэк?')">
-                                <button type="submit" class="btn btn-sm btn-outline-danger">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <p class="text-muted text-center py-4">Нет фолбэков</p>
-        {% endif %}
-    </div>
-</div>
+<div class="card-body">
+{% if relations %}
+<div class="table-responsive">
+<table class="table table-hover align-middle">
+<thead>
+<tr>
+<th>Группы</th><th>Основная модель</th><th>Фолбэк модель</th><th>Приоритет</th><th class="text-end">Действия</th>
+</tr>
+</thead>
+<tbody>
+{% for rel in relations %}
+<tr>
+<td>
+{% if rel.model and rel.model.group_models %}
+{% for gm in rel.model.group_models|sort(attribute='group.name') %}
+<span class="badge bg-secondary">{{ gm.group.name }}</span>
+{% endfor %}
+{% else %}—{% endif %}
+</td>
+<td><span class="badge bg-warning">{{ rel.model.provider.name if rel.model and rel.model.provider else '-' }} - {{ rel.model.display_name or rel.model.model_name if rel.model else rel.model_id }}</span></td>
+<td><span class="badge bg-success">{{ rel.fallback_model.provider.name if rel.fallback_model and rel.fallback_model.provider else '-' }} - {{ rel.fallback_model.display_name or rel.fallback_model.model_name if rel.fallback_model else rel.fallback_model_id }}</span></td>
+<td>{{ rel.priority }}</td>
+<td class="text-end">
+<a href="/fallbacks/edit/{{ rel.id }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
+<form action="/fallbacks/delete/{{ rel.id }}" method="post" class="d-inline" onsubmit="return confirm('Удалить фолбэк?')">
+<button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+</form>
+</td>
+</tr>
+{% endfor %}
+</tbody></table></div>
+{% else %}<p class="text-muted text-center py-4">Нет фолбэков</p>{% endif %}
+</div></div>
 {% endblock %}

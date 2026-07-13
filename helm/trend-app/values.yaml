@@ -1,0 +1,7 @@
+# Default values for trend-app
+# This is a meta-chart that wraps subcharts
+
+global:
+  namespace: default
+
+# Subchart configurations are in charts/*/values.yaml

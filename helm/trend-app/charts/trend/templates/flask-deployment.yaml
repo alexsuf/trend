@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trend-research
+  namespace: trend
+spec:
+  replicas: {{ .Values.flask.replicas }}
+  selector:
+    matchLabels:
+      app: trend-research
+  template:
+    metadata:
+      labels:
+        app: trend-research
+    spec:
+      hostAliases:
+        - ip: 10.111.129.2
+          hostnames:
+            - "auth.trend-app"
+            - "web.trend-app"
+      containers:
+        - name: trend-research
+          image: "{{ .Values.flask.image.repository }}:{{ .Values.flask.image.tag }}"
+          imagePullPolicy: {{ .Values.flask.image.pullPolicy }}
+          ports:
+            - containerPort: 5000
+          env:
+            - name: TZ
+              value: {{ .Values.flask.env.TZ | quote }}
+            - name: FLASK_SECRET_KEY
+              value: {{ .Values.flask.env.FLASK_SECRET_KEY | quote }}
+            - name: KEYCLOAK_URL
+              value: {{ .Values.flask.env.KEYCLOAK_URL | quote }}
+            - name: KEYCLOAK_INTERNAL_URL
+              value: {{ .Values.flask.env.KEYCLOAK_INTERNAL_URL | quote }}
+            - name: KEYCLOAK_REALM
+              value: {{ .Values.flask.env.KEYCLOAK_REALM | quote }}
+            - name: KEYCLOAK_CLIENT_ID
+              value: {{ .Values.flask.env.KEYCLOAK_CLIENT_ID | quote }}
+            - name: KEYCLOAK_CLIENT_SECRET
+              value: {{ .Values.flask.env.KEYCLOAK_CLIENT_SECRET | quote }}
+            - name: PGTZ
+              value: {{ .Values.flask.env.PGTZ | quote }}
+            - name: DATABASE_URL
+              value: {{ .Values.flask.env.DATABASE_URL | quote }}
+          resources:
+{{ toYaml .Values.flask.resources | indent 12 }}

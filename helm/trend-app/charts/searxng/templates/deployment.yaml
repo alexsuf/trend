@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: searxng
+  namespace: search
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app: searxng
+  template:
+    metadata:
+      labels:
+        app: searxng
+    spec:
+      containers:
+        - name: searxng
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8080
+          env:
+            - name: TZ
+              value: {{ .Values.env.TZ | quote }}
+            - name: SEARXNG_SETTINGS_PATH
+              value: {{ .Values.env.SEARXNG_SETTINGS_PATH | quote }}
+            - name: INSTANCE_NAME
+              value: {{ .Values.env.INSTANCE_NAME | quote }}
+            - name: AUTOCOMPLETE
+              value: {{ .Values.env.AUTOCOMPLETE | quote }}
+            - name: SEARCH_ENGINE_API_KEY
+              value: {{ .Values.env.SEARCH_ENGINE_API_KEY | quote }}
+            - name: SEARXNG_BIND_ADDRESS
+              value: {{ .Values.env.SEARXNG_BIND_ADDRESS | quote }}
+          command: ["/bin/sh", "-c"]
+          args: ["unset PORT && exec /usr/local/searxng/.venv/bin/granian searx.webapp:app --host 0.0.0.0 --port 8080 --workers 2"]
+          resources:
+            requests:
+              memory: {{ .Values.resources.requests.memory }}
+              cpu: {{ .Values.resources.requests.cpu }}
+            limits:
+              memory: {{ .Values.resources.limits.memory }}
+              cpu: {{ .Values.resources.limits.cpu }}
+          securityContext:
+            runAsUser: {{ .Values.securityContext.runAsUser }}
+            runAsGroup: {{ .Values.securityContext.runAsGroup }}
+          volumeMounts:
+            - name: searxng-settings
+              mountPath: /etc/searxng/settings.yml
+              subPath: settings.yml
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: searxng-settings
+          configMap:
+            name: {{ .Values.configMap.name }}
+        - name: tmp
+          emptyDir: {}

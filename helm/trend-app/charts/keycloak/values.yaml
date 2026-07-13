@@ -1,0 +1,63 @@
+keycloak:
+  replicas: 1
+  image:
+    repository: quay.io/keycloak/keycloak
+    tag: 26.3
+    pullPolicy: IfNotPresent
+  env:
+    TZ: "Europe/Moscow"
+    KC_DB: postgres
+    KC_DB_URL: "jdbc:postgresql://postgres:5432/keycloak"
+    KC_DB_USERNAME: keycloak
+    KC_DB_PASSWORD: secret
+    KEYCLOAK_ADMIN: admin
+    KEYCLOAK_ADMIN_PASSWORD: secret
+    KC_HOSTNAME: auth.trend-app
+  resources: {}
+
+postgres:
+  replicas: 1
+  image:
+    repository: alexsuf/postgres
+    tag: latest
+    pullPolicy: IfNotPresent
+  env:
+    TZ: "Europe/Moscow"
+    PGTZ: "Europe/Moscow"
+    POSTGRES_DB: keycloak
+    POSTGRES_USER: keycloak
+    POSTGRES_PASSWORD: secret
+  resources: {}
+
+service:
+  keycloak:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+  postgres:
+    type: ClusterIP
+    port: 5432
+    targetPort: 5432
+  postgresNodeport:
+    type: NodePort
+    port: 5432
+    targetPort: 5432
+    nodePort: 30432
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - host: auth.trend-app
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: keycloak
+              port:
+                number: 80
+
+pvc:
+  name: postgres-pvc
+  storage: 1Gi

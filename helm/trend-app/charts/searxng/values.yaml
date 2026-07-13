@@ -1,0 +1,52 @@
+replicas: 1
+
+image:
+  repository: searxng/searxng
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - host: search.trend-app
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: searxng
+              port:
+                number: 80
+
+configMap:
+  name: searxng-settings
+
+env:
+  TZ: "Europe/Moscow"
+  SEARXNG_SETTINGS_PATH: "/etc/searxng/settings.yml"
+  INSTANCE_NAME: "SearXNG"
+  AUTOCOMPLETE: "google"
+  SEARCH_ENGINE_API_KEY: ""
+  SEARXNG_BIND_ADDRESS: "0.0.0.0:8080"
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+
+volumes:
+  - name: tmp
+    emptyDir: {}

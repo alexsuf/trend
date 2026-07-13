@@ -1,0 +1,96 @@
+flask:
+  replicas: 1
+  image:
+    repository: alexsuf/trend
+    tag: latest
+    pullPolicy: Never
+  env:
+    TZ: "Europe/Moscow"
+    FLASK_SECRET_KEY: "super-secret-key-for-dev-change-in-prod"
+    KEYCLOAK_URL: "http://auth.trend-app"
+    KEYCLOAK_INTERNAL_URL: "http://keycloak.keycloak.svc.cluster.local"
+    KEYCLOAK_REALM: trend
+    KEYCLOAK_CLIENT_ID: trend-web
+    KEYCLOAK_CLIENT_SECRET: bbWGIugaSj9ithjybqoNR5hXI9acjEel
+    PGTZ: "Europe/Moscow"
+    DATABASE_URL: "postgresql://trend:secret@postgres.keycloak.svc.cluster.local:5432/trend"
+  resources: {}
+
+worker:
+  replicas: 1
+  image:
+    repository: alexsuf/trend
+    tag: latest
+    pullPolicy: Never
+  env:
+    TZ: "Europe/Moscow"
+    DATABASE_URL: "postgresql://trend:secret@postgres.keycloak.svc.cluster.local:5432/trend"
+    PGTZ: "Europe/Moscow"
+    LLM_BASE_URL: "https://bothub.chat/api/v2/openai/v1"
+    LLM_MODEL: "gpt-4o-mini"
+    SEARXNG_URL: "http://searxng.search.svc.cluster.local"
+    WORKER_POLL_INTERVAL: "2"
+  resources: {}
+
+adm:
+  replicas: 1
+  image:
+    repository: alexsuf/trend-adm
+    tag: latest
+    pullPolicy: Never
+  env:
+    TZ: "Europe/Moscow"
+    FLASK_SECRET_KEY: "super-secret-key-for-adm-change-in-prod"
+    KEYCLOAK_URL: "http://auth.trend-app"
+    KEYCLOAK_INTERNAL_URL: "http://keycloak.keycloak.svc.cluster.local"
+    KEYCLOAK_REALM: trend
+    KEYCLOAK_CLIENT_ID: trend-admin
+    KEYCLOAK_CLIENT_SECRET: ZePGCk9losJjuOtQxBLcHK64RgAF5MfNDaqpnS7b3V
+    PGTZ: "Europe/Moscow"
+    KEYCLOAK_ADMIN_USER: admin
+    KEYCLOAK_ADMIN_PASS: secret
+    DATABASE_URL: "postgresql://trend:secret@postgres.keycloak.svc.cluster.local:5432/trend"
+  resources: {}
+
+service:
+  flask:
+    type: ClusterIP
+    port: 80
+    targetPort: 5000
+  adm:
+    type: ClusterIP
+    port: 80
+    targetPort: 5000
+
+ingress:
+  flask:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-connect-timeout: "600"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+      nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    hosts:
+      - host: web.trend-app
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: trend-research
+                port:
+                  number: 80
+  adm:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+      - host: adm.trend-app
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: trend-adm
+                port:
+                  number: 80
