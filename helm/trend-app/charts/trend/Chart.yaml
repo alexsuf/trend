@@ -1,6 +1,0 @@
-apiVersion: v2
-name: trend
-description: Trend application (flask, worker, adm)
-type: application
-version: 0.1.0
-appVersion: "1.0"
