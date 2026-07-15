@@ -390,19 +390,46 @@ class CustomerState(TypedDict, total=False):
 def customer_planner(state: CustomerState, logger: LogCapture):
     c_name = state["c_name"]
     query = state["query"]
-    safe_query = sanitize_query(f"{c_name} {query}")
     logger.log("CUSTOMER_PLANNER", f"Company: {c_name}, Query: {query}")
     out = call_llm([
-        {"role": "system", "content": f"Компания: {c_name}. Запрос: {query}\n\nСоставь 3-5 поисковых запросов для сбора информации об этой компании. Убедись, что запросы однозначно идентифицируют компанию и исключают организации с похожими названиями. Также обязательно включи запросы для rusprofile.ru, raexpert.ru, banki.ru, digital.gov.ru, audit-it.ru, ru.wikipedia.org, career.habr.com, если они релевантны. Верни ТОЛЬКО JSON массив строк. Без объяснений."},
-        {"role": "user", "content": safe_query}
+        {"role": "system", "content": "Ты генератор поисковых запросов. Всегда возвращай ТОЛЬКО JSON массив строк, без объяснений."},
+        {"role": "user", "content": f"""Сгенерируй 10 максимально разнообразных поисковых запросов для поиска информации о компании. Не повторяйся. Используй разные формулировки. Добавляй запросы с site: только для авторитетных источников.
+
+Компания: {c_name}
+
+Тема:
+{query}
+
+Страна:
+Россия
+
+Сгенерируй запросы для поиска:
+
+1. официальный сайт
+2. новости
+3. пресс-релизы
+4. интервью руководителей
+5. ИИ
+6. цифровизация
+7. импортозамещение
+8. инновации
+9. вакансии
+10. партнерства
+11. конференции
+12. инвестиции
+
+Верни JSON."""}
     ], logger, fallback_models=state.get("fallback_models", []), state=state)
     try:
         plan = json.loads(out)
-        plan = validate_plan(plan)
-        if not plan:
-            plan = [safe_query]
+        if not isinstance(plan, list):
+            raise ValueError("not a list")
+        cleaned = [str(item).strip() for item in plan if item and str(item).strip()]
+        if not cleaned:
+            cleaned = [f"{c_name} {query}"]
+        plan = cleaned
     except Exception:
-        plan = [safe_query]
+        plan = [f"{c_name} {query}"]
     logger.log("CUSTOMER_PLANNER_COMPLETED", f"Created {len(plan)} search queries")
     return {"plan": plan}
 
@@ -412,7 +439,6 @@ def customer_search(state: CustomerState, logger: LogCapture):
     logger.log("CUSTOMER_SEARCH", str(state.get("plan")))
     results = []
     
-    # Domain-specific queries to business databases
     business_sites = [
         f"{c_name} site:rusprofile.ru",
         f"{c_name} site:raexpert.ru",
@@ -420,8 +446,9 @@ def customer_search(state: CustomerState, logger: LogCapture):
         f"{c_name} site:digital.gov.ru",
         f"{c_name} site:audit-it.ru",
         f"{c_name} site:ru.wikipedia.org",
-        f"{c_name} site:yandex.ru",
         f"{c_name} site:career.habr.com",
+        f"{c_name} site:cnews.ru",
+        f"{c_name} site:interfax.ru",
     ]
     all_queries = list(state.get("plan", [f"{c_name} {state['query']}"])) + business_sites
     

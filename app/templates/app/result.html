@@ -5,9 +5,6 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Выполнение запроса: {{ prompt_name or prompt }}</h2>
-    <a href="/query" class="btn btn-primary">
-        <i class="bi bi-trending-up"></i> Поиск тренда
-    </a>
 </div>
 
 <div class="card mb-3">
@@ -30,17 +27,6 @@
 </div>
 
 <div id="report-area" style="display:none;">
-    <div class="card mb-3">
-        <div class="card-header">
-            <span><i class="bi bi-speedometer2"></i> Оценка устойчивости тренда</span>
-        </div>
-        <div class="card-body text-center py-4">
-            <div id="score-display">
-                <span id="score-number" style="font-size: 64px; font-weight: 800; line-height: 1;"></span>
-                <div style="font-size: 18px; color: #6c757d; margin-top: 4px;">из 10</div>
-            </div>
-        </div>
-    </div>
     <div class="card mb-3">
         <div class="card-header d-flex justify-content-between align-items-center">
             <span><i class="bi bi-file-earmark-text"></i> Итоговый отчёт</span>
@@ -141,18 +127,11 @@
         fetch('/api/task-report/' + taskId)
             .then(function(response) { return response.json(); })
             .then(function(data) {
-                if (data.report) {
-                    document.getElementById('report-area').style.display = 'block';
-                    var content = document.getElementById('report-content');
-                    content.innerHTML = '<div class="report-content">' + marked.parse(data.report) + '</div>';
-
-                    if (data.score && data.score > 0 && data.score_color) {
-                        var el = document.getElementById('score-number');
-                        if (el) { el.textContent = data.score; el.style.color = data.score_color; }
-                    } else {
-                        document.getElementById('score-display').style.display = 'none';
-                    }
-                    reportLoaded = true;
+if (data.report) {
+                        document.getElementById('report-area').style.display = 'block';
+                        var content = document.getElementById('report-content');
+                        content.innerHTML = '<div class="report-content">' + marked.parse(data.report) + '</div>';
+                        reportLoaded = true;
                 }
             })
             .catch(function(error) {
