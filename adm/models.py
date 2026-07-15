@@ -83,10 +83,10 @@ class LLMModel(Base):
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     provider = relationship('LLMProvider', back_populates='models')
-    group_models = relationship('GroupModel', back_populates='model')
-    fallbacks = relationship('LLMFallback', foreign_keys='LLMFallback.model_id', back_populates='model')
-    fallback_for = relationship('LLMFallback', foreign_keys='LLMFallback.fallback_model_id', back_populates='fallback_model')
-    agent_models = relationship('AgentModel', back_populates='model')
+    group_models = relationship('GroupModel', back_populates='model', passive_deletes=True)
+    fallbacks = relationship('LLMFallback', foreign_keys='LLMFallback.model_id', back_populates='model', passive_deletes=True)
+    fallback_for = relationship('LLMFallback', foreign_keys='LLMFallback.fallback_model_id', back_populates='fallback_model', passive_deletes=True)
+    agent_models = relationship('AgentModel', back_populates='model', passive_deletes=True)
 
 
 class GroupModel(Base):

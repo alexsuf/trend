@@ -33,7 +33,7 @@ spec:
           value: admin
         - name: KEYCLOAK_ADMIN_PASSWORD
           value: secret
-        - name: KC_HOSTNAME
-          value: auth.trend-app
+        - name: KC_HOSTNAME_URL
+          value: "http://localhost:30003"
         ports:
         - containerPort: 8080

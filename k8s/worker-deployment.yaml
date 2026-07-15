@@ -13,11 +13,6 @@ spec:
       labels:
         app: trend-research-worker
     spec:
-      hostAliases:
-      - ip: 10.111.129.2
-        hostnames:
-        - "auth.trend-app"
-        - "web.trend-app"
       containers:
       - name: trend-research-worker
         image: alexsuf/trend

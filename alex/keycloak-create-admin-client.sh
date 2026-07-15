@@ -14,7 +14,7 @@ REDIRECT_URI="${REDIRECT_URI:-}"
 
 if [ -z "$REDIRECT_URI" ]; then
     echo "ERROR: REDIRECT_URI environment variable is required"
-    echo "Example: REDIRECT_URI=https://adm.yourdomain.com/callback ./keycloak-create-admin-client.sh"
+    echo "Example: REDIRECT_URI=http://localhost:3002/callback ./keycloak-create-admin-client.sh"
     exit 1
 fi
 

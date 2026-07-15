@@ -33,11 +33,16 @@ KEYCLOAK_CLIENT_SECRET = app.config['KEYCLOAK_CLIENT_SECRET']
 
 oauth.register(
     'keycloak',
-    server_metadata_url=f'{KEYCLOAK_INTERNAL_URL}/realms/{KEYCLOAK_REALM}/.well-known/openid-configuration',
     client_id=KEYCLOAK_CLIENT_ID,
     client_secret=KEYCLOAK_CLIENT_SECRET,
     authorize_url=f'{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/auth',
-    client_kwargs={'scope': 'openid profile email roles', 'require_nonce': False},
+    access_token_url=f'{KEYCLOAK_INTERNAL_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token',
+    jwks_uri=f'{KEYCLOAK_INTERNAL_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/certs',
+    client_kwargs={
+        'scope': 'openid profile email roles',
+        'require_nonce': False,
+        'token_endpoint_auth_method': 'client_secret_basic',
+    },
 )
 
 

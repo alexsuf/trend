@@ -18,11 +18,6 @@ spec:
         app: trend-research
  
     spec:
-      hostAliases:
-      - ip: 10.111.129.2
-        hostnames:
-        - "auth.trend-app"
-        - "web.trend-app"
       containers:
       - name: trend-research
  
@@ -39,7 +34,7 @@ spec:
         - name: FLASK_SECRET_KEY
           value: "super-secret-key-for-dev-change-in-prod"
         - name: KEYCLOAK_URL
-          value: "http://auth.trend-app"
+          value: "http://localhost:30003"
         - name: KEYCLOAK_INTERNAL_URL
           value: "http://keycloak.keycloak.svc.cluster.local"
         - name: KEYCLOAK_REALM

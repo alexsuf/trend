@@ -30,7 +30,7 @@ Base.metadata.create_all(engine)
 
 oauth = OAuth(app)
 
-KEYCLOAK_URL = os.environ.get('KEYCLOAK_URL') or 'http://auth.trend-app'
+KEYCLOAK_URL = os.environ.get('KEYCLOAK_URL') or 'http://localhost:30003'
 KEYCLOAK_INTERNAL_URL = os.environ.get('KEYCLOAK_INTERNAL_URL') or 'http://keycloak.keycloak.svc.cluster.local'
 KEYCLOAK_REALM = os.environ.get('KEYCLOAK_REALM') or 'trend'
 KEYCLOAK_CLIENT_ID = os.environ.get('KEYCLOAK_CLIENT_ID') or 'trend-web'
@@ -38,11 +38,16 @@ KEYCLOAK_CLIENT_SECRET = os.environ.get('KEYCLOAK_CLIENT_SECRET') or 'bbWGIugaSj
 
 oauth.register(
     'keycloak',
-    server_metadata_url=f'{KEYCLOAK_INTERNAL_URL}/realms/{KEYCLOAK_REALM}/.well-known/openid-configuration',
     client_id=KEYCLOAK_CLIENT_ID,
     client_secret=KEYCLOAK_CLIENT_SECRET,
     authorize_url=f'{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/auth',
-    client_kwargs={'scope': 'openid profile email roles', 'require_nonce': False},
+    access_token_url=f'{KEYCLOAK_INTERNAL_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token',
+    jwks_uri=f'{KEYCLOAK_INTERNAL_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/certs',
+    client_kwargs={
+        'scope': 'openid profile email roles',
+        'require_nonce': False,
+        'token_endpoint_auth_method': 'client_secret_basic',
+    },
 )
 
 

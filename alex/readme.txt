@@ -20,8 +20,8 @@ k8s/KEYCLOAK_SETUP.md — инструкция по восстановлению
 Удалить весь кластер:
 kubectl delete namespace trend keycloak search
 
-127.0.0.1 web.trend-app
-127.0.0.1 auth.trend-app
-127.0.0.1 adm.trend-app
-212.233.94.233 alex
-212.233.93.103 az-kube
+Port-forwards для localhost (запустить в отдельных терминалах):
+kubectl port-forward -n trend svc/trend-research 3001:80
+kubectl port-forward -n trend svc/trend-adm 3002:80
+kubectl port-forward -n keycloak svc/keycloak 3003:80
+kubectl port-forward -n search svc/searxng 3004:80

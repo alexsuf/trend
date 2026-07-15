@@ -37,7 +37,7 @@ bash keycloak-create-admin-client.sh
 ```bash
 cd k8s
 python keycloak_setup_admin_client.py \
-    --host auth.trend-app \
+    --host localhost:3003 \
     --realm trend \
     --admin-user admin \
     --admin-pass secret \
@@ -54,7 +54,6 @@ kubectl apply -f keycloak-postgres-deployment.yaml
 kubectl apply -f keycloak-postgres-service.yaml
 kubectl apply -f keycloak-deployment.yaml
 kubectl apply -f keycloak-service.yaml
-kubectl apply -f keycloak-ingress.yaml
 
 # 2. Дождаться запуска
 kubectl rollout status deployment/keycloak -n keycloak

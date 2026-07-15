@@ -120,8 +120,9 @@ class LLMModel(Base):
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     provider = relationship('LLMProvider', back_populates='models')
-    group_models = relationship('GroupModel', back_populates='model')
-
+    group_models = relationship('GroupModel', back_populates='model', passive_deletes=True)
+    fallbacks = relationship('LLMFallback', foreign_keys='LLMFallback.model_id', back_populates='model', passive_deletes=True)
+    fallback_for = relationship('LLMFallback', foreign_keys='LLMFallback.fallback_model_id', back_populates='fallback_model', passive_deletes=True)
 
 class LLMFallback(Base):
     __tablename__ = 'llm_fallback'
@@ -132,8 +133,8 @@ class LLMFallback(Base):
     fallback_model_id = Column(UUID(as_uuid=True), ForeignKey('llm_models.id', ondelete='CASCADE'), nullable=False)
     priority = Column(Integer, nullable=False, default=1)
 
-    model = relationship('LLMModel', foreign_keys=[model_id])
-    fallback_model = relationship('LLMModel', foreign_keys=[fallback_model_id])
+    model = relationship('LLMModel', foreign_keys=[model_id], back_populates='fallbacks')
+    fallback_model = relationship('LLMModel', foreign_keys=[fallback_model_id], back_populates='fallback_for')
 
 
 class LLMGroup(Base):
