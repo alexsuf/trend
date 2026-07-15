@@ -73,11 +73,14 @@
                     <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="/dashboard">
                         <i class="bi bi-speedometer2"></i> Дашборд
                     </a>
+                    <a class="nav-link {% if request.endpoint == 'new_query' %}active{% endif %}" href="/query">
+                        <i class="bi bi-graph-up"></i> Поиск тренда
+                    </a>
+                    <a class="nav-link {% if request.endpoint in ('customer_query', 'customer_prompts') %}active{% endif %}" href="/customer-query">
+                        <i class="bi bi-building"></i> Поиск заказчика
+                    </a>
                     <a class="nav-link {% if request.endpoint == 'history' %}active{% endif %}" href="/history">
                         <i class="bi bi-clock-history"></i> История запросов
-                    </a>
-                    <a class="nav-link {% if request.endpoint == 'new_query' %}active{% endif %}" href="/query">
-                        <i class="bi bi-plus-circle"></i> Новый запрос
                     </a>
                     <a class="nav-link {% if request.endpoint == 'models_list' %}active{% endif %}" href="/models">
                         <i class="bi bi-cpu"></i> Модели

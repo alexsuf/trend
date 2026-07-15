@@ -34,6 +34,7 @@ class User(Base):
 
     research_tasks = relationship('ResearchTask', back_populates='user')
     user_groups = relationship('UserGroup', back_populates='user')
+    customer_prompts = relationship('CustomerPrompt', back_populates='user', cascade='all, delete-orphan', passive_deletes=True)
 
 
 class ResearchTask(Base):
@@ -46,6 +47,7 @@ class ResearchTask(Base):
     status = Column(SAEnum(TaskStatus), nullable=False, default=TaskStatus.queued)
     priority = Column(BigInteger, default=0)
     model_used = Column(Text)
+    c_name = Column(Text)
     meta = Column(JSONB)
     error_message = Column(Text)
     logs = Column(JSONB)
@@ -56,8 +58,6 @@ class ResearchTask(Base):
     user = relationship('User', back_populates='research_tasks')
     report = relationship('ResearchReport', back_populates='task', uselist=False, cascade='all, delete-orphan', passive_deletes=True)
     events = relationship('AgentEvent', back_populates='task', cascade='all, delete-orphan', passive_deletes=True)
-
-
 class ResearchReport(Base):
     __tablename__ = 'research_reports'
 
@@ -183,6 +183,19 @@ class ResearchScore(Base):
 
     score = Column(Integer, primary_key=True)
     color = Column(Text, nullable=False)
+
+
+class CustomerPrompt(Base):
+    __tablename__ = 'customer_prompts'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    name = Column(Text, nullable=False)
+    prompt = Column(Text, nullable=False)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+    user = relationship('User', back_populates='customer_prompts')
 
 
 def get_score_color(score_val, db_session):

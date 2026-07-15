@@ -11,7 +11,7 @@ from langgraph.graph import StateGraph, END
 from openai import OpenAI
 from sqlalchemy import text
 from task_store import task_store
-from prompt_guard import sanitize_query, validate_plan, is_url_safe, validate_score, SYSTEM_PROMPT_GLOBAL, SYSTEM_PROMPT_RUSSIA, SYSTEM_PROMPT_SCORE, SYSTEM_PROMPT_REPORT
+from prompt_guard import sanitize_query, validate_plan, is_url_safe, validate_score, SYSTEM_PROMPT_GLOBAL, SYSTEM_PROMPT_RUSSIA, SYSTEM_PROMPT_SCORE, SYSTEM_PROMPT_REPORT, SYSTEM_PROMPT_CUSTOMER_SEARCH, SYSTEM_PROMPT_CUSTOMER_REPORT
 
 
 # =====================================================
@@ -368,4 +368,175 @@ def run_pipeline(query: str, api_key: str, base_url: str, model: str, searxng_ur
         result['report'] = score_text + '\n\n' + result['report']
 
     logger.log("DONE", "Pipeline completed")
+    return result, logger.lines
+
+
+# =====================================================
+# CUSTOMER SEARCH PIPELINE
+# =====================================================
+class CustomerState(TypedDict, total=False):
+    c_name: str
+    query: str
+    plan: List[str]
+    search_results: List[Dict[str, Any]]
+    context: str
+    analysis: str
+    report: str
+    logs: List[str]
+    fallback_models: List[Dict[str, Any]]
+    last_model_used: str
+
+
+def customer_planner(state: CustomerState, logger: LogCapture):
+    c_name = state["c_name"]
+    query = state["query"]
+    safe_query = sanitize_query(f"{c_name} {query}")
+    logger.log("CUSTOMER_PLANNER", f"Company: {c_name}, Query: {query}")
+    out = call_llm([
+        {"role": "system", "content": f"Компания: {c_name}. Запрос: {query}\n\nСоставь 3-5 поисковых запросов для сбора информации об этой компании. Убедись, что запросы однозначно идентифицируют компанию и исключают организации с похожими названиями. Также обязательно включи запросы для rusprofile.ru, raexpert.ru, banki.ru, digital.gov.ru, audit-it.ru, ru.wikipedia.org, career.habr.com, если они релевантны. Верни ТОЛЬКО JSON массив строк. Без объяснений."},
+        {"role": "user", "content": safe_query}
+    ], logger, fallback_models=state.get("fallback_models", []), state=state)
+    try:
+        plan = json.loads(out)
+        plan = validate_plan(plan)
+        if not plan:
+            plan = [safe_query]
+    except Exception:
+        plan = [safe_query]
+    logger.log("CUSTOMER_PLANNER_COMPLETED", f"Created {len(plan)} search queries")
+    return {"plan": plan}
+
+
+def customer_search(state: CustomerState, logger: LogCapture):
+    c_name = state["c_name"]
+    logger.log("CUSTOMER_SEARCH", str(state.get("plan")))
+    results = []
+    
+    # Domain-specific queries to business databases
+    business_sites = [
+        f"{c_name} site:rusprofile.ru",
+        f"{c_name} site:raexpert.ru",
+        f"{c_name} site:banki.ru",
+        f"{c_name} site:digital.gov.ru",
+        f"{c_name} site:audit-it.ru",
+        f"{c_name} site:ru.wikipedia.org",
+        f"{c_name} site:yandex.ru",
+        f"{c_name} site:career.habr.com",
+    ]
+    all_queries = list(state.get("plan", [f"{c_name} {state['query']}"])) + business_sites
+    
+    for q in all_queries:
+        try:
+            r = requests.get(f"{SEARXNG_URL}/search", params={"q": q, "format": "json"}, timeout=30)
+            data = r.json()
+            for item in data.get("results", [])[:5]:
+                url = item.get("url", "")
+                if url and is_url_safe(url):
+                    results.append({
+                        "query": q,
+                        "title": item.get("title", ""),
+                        "url": url,
+                        "content": item.get("content", "")
+                    })
+        except Exception as e:
+            logger.log("CUSTOMER_SEARCH_ERROR", f"Error searching '{q}': {e}")
+    logger.log("CUSTOMER_SEARCH_COMPLETED", f"Found {len(results)} results")
+    return {"search_results": results}
+
+
+def customer_build_context(state: CustomerState, logger: LogCapture):
+    logger.log("CUSTOMER_BUILD_CONTEXT", "Building context from results")
+    text = ""
+    for i, r in enumerate(state.get("search_results", []), 1):
+        text += f"\n[{i}] {r['title']}\n    URL: {r['url']}\n    CONTENT: {r['content']}\n-----------------\n"
+    logger.log("CUSTOMER_BUILD_CONTEXT_COMPLETED", f"Context built with {len(state.get('search_results', []))} results")
+    return {"context": text}
+
+
+def customer_analysis(state: CustomerState, logger: LogCapture):
+    sources_block = ""
+    for i, r in enumerate(state.get("search_results", []), 1):
+        url = r.get("url", "")
+        title = r.get("title", "")
+        sources_block += f"[{i}] {title} — {url}\n   {r.get('content', '')[:500]}\n\n"
+    out = call_llm([
+        {"role": "system", "content": SYSTEM_PROMPT_CUSTOMER_SEARCH},
+        {"role": "user", "content": f"Компания: {state['c_name']}\nЗапрос: {state['query']}\n\nКонтекст (используй ТОЛЬКО эти ссылки):\n{sources_block}"}
+    ], logger, fallback_models=state.get("fallback_models", []), state=state)
+    out = _clean_fake_links(out)
+    out = _ensure_links_in_sources(out, state.get("search_results", []))
+    logger.log("CUSTOMER_ANALYSIS_COMPLETED", "Customer analysis completed")
+    return {"analysis": out}
+
+
+def customer_report_agent(state: CustomerState, logger: LogCapture):
+    sources = state.get("search_results", [])
+    out = call_llm([
+        {"role": "system", "content": SYSTEM_PROMPT_CUSTOMER_REPORT},
+        {"role": "user", "content": json.dumps({
+            "c_name": state["c_name"],
+            "query": state["query"],
+            "analysis": state.get("analysis", ""),
+            "sources": [
+                {"title": r.get("title"), "url": r.get("url")}
+                for r in sources if r.get("url") and is_url_safe(r.get("url", ""))
+            ]
+        }, ensure_ascii=False)}
+    ], logger, fallback_models=state.get("fallback_models", []), state=state)
+    out = _clean_fake_links(out)
+    out = _ensure_links_in_sources(out, sources)
+    logger.log("CUSTOMER_REPORT_COMPLETED", "Customer report generated")
+    return {"report": out}
+
+
+def build_customer_workflow(logger: LogCapture):
+    graph = StateGraph(CustomerState)
+    graph.add_node("planner", partial(customer_planner, logger=logger))
+    graph.add_node("search", partial(customer_search, logger=logger))
+    graph.add_node("build_context", partial(customer_build_context, logger=logger))
+    graph.add_node("customer_analysis", partial(customer_analysis, logger=logger))
+    graph.add_node("report_agent", partial(customer_report_agent, logger=logger))
+    graph.set_entry_point("planner")
+    graph.add_edge("planner", "search")
+    graph.add_edge("search", "build_context")
+    graph.add_edge("build_context", "customer_analysis")
+    graph.add_edge("customer_analysis", "report_agent")
+    graph.add_edge("report_agent", END)
+    logger.log("CUSTOMER_WORKFLOW", "Customer graph nodes and edges configured")
+    return graph.compile()
+
+
+def run_customer_pipeline(c_name: str, query: str, api_key: str, base_url: str, model: str, searxng_url: str, task_id: str = None, fallback_models=None, db_engine=None, timeout=180):
+    global client, MODEL, SEARXNG_URL
+    api_key = api_key or os.environ.get('LLM_API_KEY', '')
+    base_url = base_url or os.environ.get('LLM_BASE_URL', 'https://bothub.chat/api/v2/openai/v1')
+    model = model or os.environ.get('LLM_MODEL', 'gpt-4o-mini')
+    if not timeout or timeout <= 0:
+        timeout = 180
+    searxng_url = searxng_url or os.environ.get('SEARXNG_URL', 'http://searxng.search.svc.cluster.local')
+
+    MODEL = model
+    SEARXNG_URL = searxng_url
+    client = OpenAI(api_key=api_key, base_url=base_url, timeout=float(timeout))
+
+    logger = LogCapture(task_id=task_id, db_engine=db_engine)
+    logger.log("CUSTOMER_CONFIG", f"Company: {c_name}\nModel: {model}\nSearXNG: {searxng_url}")
+
+    safe_query = sanitize_query(f"{c_name} {query}")
+
+    workflow = build_customer_workflow(logger)
+    result = workflow.invoke({"c_name": c_name, "query": query, "fallback_models": fallback_models or []})
+
+    report = result.get("report", "")
+    report = _clean_fake_links(report)
+    sources = result.get("search_results", []) or []
+    report = _ensure_links_in_sources(report, sources)
+    result["report"] = report
+
+    if result.get("analysis"):
+        cleaned = _clean_fake_links(result["analysis"])
+        cleaned = _ensure_links_in_sources(cleaned, sources)
+        result["analysis"] = cleaned
+
+    logger.log("CUSTOMER_DONE", "Customer pipeline completed")
     return result, logger.lines

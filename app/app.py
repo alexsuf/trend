@@ -13,7 +13,7 @@ from models import (
     User, ResearchTask, ResearchReport, TaskStatus,
     LLMModel, LLMProvider, LLMGroup, UserGroup,
     GroupModel, LLMFallback, AgentEvent, Base,
-    get_score_color
+    CustomerPrompt, get_score_color
 )
 from task_store import task_store
 from word_generator import generate_word_report
@@ -338,6 +338,191 @@ def new_query():
         default_model_label=default_model_label)
 
 
+@app.route('/customer-query', methods=['GET', 'POST'])
+@login_required
+def customer_query():
+    keycloak_id = session['user'].get('keycloak_id')
+    with get_db_session() as db:
+        user = db.scalar(select(User).where(User.keycloak_id == keycloak_id))
+        if not user:
+            return redirect(url_for('logout'))
+
+        default_model_id = None
+        default_model_label = 'Не настроена'
+
+        user_group = db.scalar(
+            select(UserGroup).where(UserGroup.user_id == user.id)
+        )
+        if user_group:
+            default_relation = db.scalar(
+                select(GroupModel)
+                .where(GroupModel.group_id == user_group.group_id, GroupModel.is_default == True)
+            )
+            if not default_relation:
+                default_relation = db.scalar(
+                    select(GroupModel)
+                    .where(GroupModel.group_id == user_group.group_id)
+                    .order_by(GroupModel.relation_number)
+                )
+            if default_relation:
+                model = db.scalar(
+                    select(LLMModel)
+                    .options(joinedload(LLMModel.provider))
+                    .where(LLMModel.id == default_relation.model_id)
+                )
+                if model:
+                    default_model_id = str(model.id)
+                    provider_name = model.provider.name if model.provider else '-'
+                    default_model_label = f'{provider_name} - {model.display_name or model.model_name}'
+
+        prompts = db.scalars(
+            select(CustomerPrompt)
+            .where(CustomerPrompt.user_id == user.id)
+            .order_by(CustomerPrompt.name)
+        ).all()
+
+        if request.method == 'POST':
+            c_name = request.form.get('c_name', '').strip()
+            prompt = request.form.get('prompt', '').strip()
+            model_id = request.form.get('model_id', '')
+            if not c_name:
+                flash_message('Введите наименование заказчика', 'danger')
+                return render_template('app/customer_query.html',
+                    default_model_id=default_model_id,
+                    default_model_label=default_model_label,
+                    prompts=prompts)
+            if not prompt:
+                flash_message('Введите промпт', 'danger')
+                return render_template('app/customer_query.html',
+                    default_model_id=default_model_id,
+                    default_model_label=default_model_label,
+                    prompts=prompts)
+            if not model_id or not default_model_id:
+                flash_message('Модель не настроена', 'danger')
+                return redirect(url_for('customer_query'))
+
+            fallback_models = []
+            if user_group:
+                group_model_ids = {
+                    str(gm.model_id)
+                    for gm in db.scalars(
+                        select(GroupModel).where(GroupModel.group_id == user_group.group_id)
+                    ).all()
+                }
+            else:
+                group_model_ids = set()
+            fallbacks = db.scalars(
+                select(LLMFallback)
+                .options(
+                    joinedload(LLMFallback.fallback_model).joinedload(LLMModel.provider)
+                )
+                .where(LLMFallback.model_id == model_id)
+                .order_by(LLMFallback.priority)
+            ).all()
+            for fb in fallbacks:
+                fb_model = fb.fallback_model
+                if group_model_ids and str(fb_model.id) not in group_model_ids:
+                    continue
+                fb_provider = fb_model.provider
+                fb_timeout = fb_model.timeout or 180
+                provider_label = fb_provider.name if fb_provider else '?'
+                fallback_models.append({
+                    'model_name': f'{provider_label} - {fb_model.model_name}',
+                    'api_key': fb_provider.api_key or os.environ.get('LLM_API_KEY', ''),
+                    'base_url': fb_provider.base_url,
+                    'timeout': fb_timeout if fb_timeout > 0 else 180,
+                })
+
+            task = ResearchTask(
+                user_id=user.id,
+                prompt=prompt,
+                c_name=c_name,
+                status=TaskStatus.queued,
+                meta={'model_id': model_id, 'fallbacks': fallback_models, 'prompt_name': request.form.get('prompt_name', '') or None},
+            )
+            db.add(task)
+            db.commit()
+            flash_message('Запрос поставлен в очередь', 'success')
+            return redirect(url_for('result_view', task_id=task.id))
+
+    return render_template('app/customer_query.html',
+        default_model_id=default_model_id,
+        default_model_label=default_model_label,
+        prompts=prompts)
+
+
+@app.route('/customer-prompts')
+@login_required
+def customer_prompts():
+    return redirect(url_for('customer_query'))
+
+
+@app.route('/customer-prompts/create', methods=['POST'])
+@login_required
+def customer_prompts_create():
+    keycloak_id = session['user'].get('keycloak_id')
+    with get_db_session() as db:
+        user = db.scalar(select(User).where(User.keycloak_id == keycloak_id))
+        if not user:
+            return redirect(url_for('logout'))
+        name = request.form.get('name', '').strip()
+        prompt = request.form.get('prompt', '').strip()
+        if not name or not prompt:
+            flash_message('Заполните имя и текст промпта', 'danger')
+        else:
+            cp = CustomerPrompt(user_id=user.id, name=name, prompt=prompt)
+            db.add(cp)
+            db.commit()
+            flash_message('Промпт сохранён', 'success')
+    return redirect(url_for('customer_query'))
+
+
+@app.route('/customer-prompts/edit/<uuid:prompt_id>', methods=['POST'])
+@login_required
+def customer_prompts_edit(prompt_id):
+    keycloak_id = session['user'].get('keycloak_id')
+    with get_db_session() as db:
+        user = db.scalar(select(User).where(User.keycloak_id == keycloak_id))
+        if not user:
+            return redirect(url_for('logout'))
+        cp = db.scalar(
+            select(CustomerPrompt)
+            .where(CustomerPrompt.id == prompt_id, CustomerPrompt.user_id == user.id)
+        )
+        if not cp:
+            flash_message('Промпт не найден', 'danger')
+        else:
+            cp.name = request.form.get('name', '').strip()
+            cp.prompt = request.form.get('prompt', '').strip()
+            if not cp.name or not cp.prompt:
+                flash_message('Заполните имя и текст промпта', 'danger')
+            else:
+                db.commit()
+                flash_message('Промпт обновлён', 'success')
+    return redirect(url_for('customer_query'))
+
+
+@app.route('/customer-prompts/delete/<uuid:prompt_id>', methods=['POST'])
+@login_required
+def customer_prompts_delete(prompt_id):
+    keycloak_id = session['user'].get('keycloak_id')
+    with get_db_session() as db:
+        user = db.scalar(select(User).where(User.keycloak_id == keycloak_id))
+        if not user:
+            return redirect(url_for('logout'))
+        cp = db.scalar(
+            select(CustomerPrompt)
+            .where(CustomerPrompt.id == prompt_id, CustomerPrompt.user_id == user.id)
+        )
+        if cp:
+            db.delete(cp)
+            db.commit()
+            flash_message('Промпт удалён', 'success')
+        else:
+            flash_message('Промпт не найден', 'danger')
+    return redirect(url_for('customer_query'))
+
+
 @app.route('/models')
 @login_required
 def models_list():
@@ -422,7 +607,7 @@ def result_view(task_id):
         if not task:
             flash_message('Запрос не найден', 'danger')
             return redirect(url_for('history'))
-    return render_template('app/result.html', task_id=str(task_id), prompt=task.prompt)
+    return render_template('app/result.html', task_id=str(task_id), prompt=task.prompt, prompt_name=(task.meta or {}).get('prompt_name'))
 
 
 @app.route('/logs/<uuid:task_id>')

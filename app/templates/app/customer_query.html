@@ -1,0 +1,166 @@
+{% extends "app/base.html" %}
+
+{% block title %}Поиск заказчика - Trend Research{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Поиск заказчика</h2>
+
+<div class="card">
+    <div class="card-body">
+        <form method="post">
+            <div class="mb-3">
+                <label class="form-label">Наименование заказчика</label>
+                <input type="text" name="c_name" class="form-control" required placeholder="ООО «Пример»" value="{{ request.form.get('c_name', '') }}">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Промпт</label>
+                <div class="input-group mb-2">
+                    <textarea name="prompt" class="form-control" rows="4" required placeholder="Что нужно узнать о заказчике и какие выводы сделать...">{{ request.form.get('prompt', '') }}</textarea>
+                </div>
+                <input type="hidden" name="prompt_name" id="prompt-name-input" value="{{ request.form.get('prompt_name', '') }}">
+                <div class="d-flex gap-2 align-items-center">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" data-bs-target="#promptList">
+                        <i class="bi bi-bookmark"></i> Выбрать из сохранённых
+                    </button>
+                    <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#promptManage">
+                        <i class="bi bi-gear"></i> Управлять промптами
+                    </button>
+                </div>
+            </div>
+
+            <div class="collapse mb-3" id="promptList">
+                <div class="card card-body bg-light">
+                    <h6 class="mb-2">Сохранённые промпты</h6>
+                    {% if prompts %}
+                    <div class="list-group">
+                        {% for cp in prompts %}
+                        <button type="button" class="list-group-item list-group-item-action py-2" data-prompt="{{ cp.prompt }}" data-prompt-name="{{ cp.name }}" onclick="document.querySelector('[name=prompt]').value=this.dataset.prompt;document.querySelector('#prompt-name-input').value=this.dataset.promptName;document.querySelector('#promptList').classList.remove('show')">
+                            <strong>{{ cp.name }}</strong>
+                            <br><small class="text-muted">{{ cp.prompt[:120] }}{% if cp.prompt|length > 120 %}...{% endif %}</small>
+                        </button>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">Нет сохранённых промптов</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="collapse mb-3" id="promptManage">
+                <div class="card card-body bg-light">
+                    <h6 class="mb-3">Мои промпты</h6>
+                    {% if prompts %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Название</th>
+                                    <th>Промпт</th>
+                                    <th style="width:180px">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for cp in prompts %}
+                                <tr>
+                                    <td>{{ cp.name }}</td>
+                                    <td><small class="text-muted">{{ cp.prompt[:100] }}{% if cp.prompt|length > 100 %}...{% endif %}</small></td>
+                                    <td>
+                                        <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#editModal{{ cp.id }}">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <form method="post" action="/customer-prompts/delete/{{ cp.id }}" style="display:inline">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Удалить промпт?')">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-2">Нет сохранённых промптов</p>
+                    {% endif %}
+                    <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#createModal">
+                        <i class="bi bi-plus-circle"></i> Новый промпт
+                    </button>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Модель</label>
+                <input type="hidden" name="model_id" value="{{ default_model_id }}">
+                <p class="form-control-plaintext">
+                    <strong>{{ default_model_label }}</strong>
+                    {% if not default_model_id %}
+                    <span class="text-muted">(модель по умолчанию не настроена — обратитесь к администратору)</span>
+                    {% endif %}
+                </p>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary" {% if not default_model_id %}disabled{% endif %}>
+                    <i class="bi bi-search"></i> Найти информацию
+                </button>
+                <a href="/history" class="btn btn-secondary">Отмена</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% for cp in prompts %}
+<div class="modal fade" id="editModal{{ cp.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="/customer-prompts/edit/{{ cp.id }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Редактировать промпт</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Название</label>
+                        <input type="text" name="name" class="form-control" value="{{ cp.name }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Промпт</label>
+                        <textarea name="prompt" class="form-control" rows="5" required>{{ cp.prompt }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-warning">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<div class="modal fade" id="createModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="/customer-prompts/create">
+                <div class="modal-header">
+                    <h5 class="modal-title">Новый промпт</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Название</label>
+                        <input type="text" name="name" class="form-control" required placeholder="Например: Общий анализ компании">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Промпт</label>
+                        <textarea name="prompt" class="form-control" rows="5" required placeholder="Что нужно узнать о заказчике..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-success">Создать</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

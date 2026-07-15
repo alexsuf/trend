@@ -103,6 +103,7 @@ data:
         task_number BIGINT UNIQUE DEFAULT nextval('research_tasks_task_number_seq'::regclass),
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         prompt TEXT NOT NULL,
+        c_name TEXT,
         status TEXT DEFAULT 'queued' NOT NULL,
         priority BIGINT DEFAULT 0,
         model_used TEXT,
@@ -126,6 +127,15 @@ data:
         created_at TIMESTAMP DEFAULT now()
     );
     CREATE INDEX IF NOT EXISTS idx_research_reports_task_id ON research_reports(task_id);
+    CREATE TABLE IF NOT EXISTS public.customer_prompts (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        prompt TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT now(),
+        updated_at TIMESTAMP DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_customer_prompts_user_id ON customer_prompts(user_id);
     CREATE TABLE IF NOT EXISTS public.agent_events (
         id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
         event_number BIGINT UNIQUE DEFAULT nextval('agent_events_event_number_seq'::regclass),

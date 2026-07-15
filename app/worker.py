@@ -3,7 +3,7 @@ import time
 from sqlalchemy import create_engine, select, func
 from sqlalchemy.orm import Session, joinedload
 from models import ResearchTask, ResearchReport, TaskStatus, LLMModel, LLMFallback, Base
-from pipeline import run_pipeline
+from pipeline import run_pipeline, run_customer_pipeline
 from task_store import task_store
 
 
@@ -13,7 +13,7 @@ engine = create_engine(DATABASE_URL)
 Base.metadata.create_all(engine)
 
 
-def process_task(task_uuid, prompt, model_id, fallbacks):
+def process_task(task_uuid, prompt, model_id, fallbacks, c_name=None):
     with Session(engine) as db_session:
         model = db_session.scalar(
             select(LLMModel)
@@ -39,17 +39,31 @@ def process_task(task_uuid, prompt, model_id, fallbacks):
             db_session.commit()
     
     try:
-        result, logs = run_pipeline(
-            query=prompt,
-            api_key=api_key,
-            base_url=base_url,
-            model=model_name,
-            searxng_url=os.environ.get('SEARXNG_URL', 'http://searxng.search.svc.cluster.local'),
-            task_id=str(task_uuid),
-            fallback_models=fallbacks or [],
-            db_engine=engine,
-            timeout=model_timeout,
-        )
+        if c_name:
+            result, logs = run_customer_pipeline(
+                c_name=c_name,
+                query=prompt,
+                api_key=api_key,
+                base_url=base_url,
+                model=model_name,
+                searxng_url=os.environ.get('SEARXNG_URL', 'http://searxng.search.svc.cluster.local'),
+                task_id=str(task_uuid),
+                fallback_models=fallbacks or [],
+                db_engine=engine,
+                timeout=model_timeout,
+            )
+        else:
+            result, logs = run_pipeline(
+                query=prompt,
+                api_key=api_key,
+                base_url=base_url,
+                model=model_name,
+                searxng_url=os.environ.get('SEARXNG_URL', 'http://searxng.search.svc.cluster.local'),
+                task_id=str(task_uuid),
+                fallback_models=fallbacks or [],
+                db_engine=engine,
+                timeout=model_timeout,
+            )
         
         with Session(engine) as db_session:
             task = db_session.scalar(select(ResearchTask).where(ResearchTask.id == task_uuid))
@@ -58,25 +72,36 @@ def process_task(task_uuid, prompt, model_id, fallbacks):
                 task.finished_at = func.now()
                 
                 score_val = 0
-                score_text = result.get('score', '')
-                if score_text:
-                    import re
-                    m = re.search(r'(\d+(?:\.\d+)?)\s*из\s*10', score_text)
-                    if m:
-                        score_val = int(round(float(m.group(1))))
+                if not c_name:
+                    score_text = result.get('score', '')
+                    if score_text:
+                        import re
+                        m = re.search(r'(\d+(?:\.\d+)?)\s*из\s*10', score_text)
+                        if m:
+                            score_val = int(round(float(m.group(1))))
+                
+                report_data = {
+                    'content': result.get('report', ''),
+                    'word_path': None,
+                }
+                if c_name:
+                    report_data['analysis'] = result.get('analysis', '')
+                else:
+                    report_data['global_analysis'] = result.get('global_analysis', '')
+                    report_data['russia_analysis'] = result.get('russia_analysis', '')
+                    report_data['score'] = result.get('score', '')
+                
+                source_lists = [result.get('search_results', []) or []]
+                if not c_name:
+                    source_lists.append(result.get('russia_search_results', []) or [])
                 
                 db_session.add(ResearchReport(
                     task_id=task_uuid,
-                    report_json={
-                        'content': result.get('report', ''),
-                        'global_analysis': result.get('global_analysis', ''),
-                        'russia_analysis': result.get('russia_analysis', ''),
-                        'score': result.get('score', ''),
-                        'word_path': None,
-                    },
+                    report_json=report_data,
                     sources=[
                         {'url': r.get('url', ''), 'title': r.get('title', '')}
-                        for r in (result.get('search_results', []) or []) + (result.get('russia_search_results', []) or [])
+                        for lst in source_lists
+                        for r in lst
                         if r.get('url') and 'example' not in r.get('url', '')
                     ],
                     score=score_val,
@@ -121,6 +146,7 @@ def worker_loop():
                         task.prompt,
                         meta.get('model_id'),
                         meta.get('fallbacks', []),
+                        task.c_name,
                     )
         except Exception as e:
             print(f"Worker error: {e}")

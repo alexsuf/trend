@@ -13,6 +13,7 @@
 <div class="card mb-3">
     <div class="card-body">
         <h5 class="card-title">Запрос</h5>
+        {% if task.c_name %}<p><strong>Заказчик:</strong> {{ task.c_name }}</p>{% endif %}
         <p class="card-text">{{ task.prompt }}</p>
         <div class="d-flex gap-3">
             <span class="badge status-{{ task.status.value }}">{{ task.status.value }}</span>
@@ -23,7 +24,7 @@
 </div>
 
 {% if report %}
-{% if score_val is not none %}
+{% if score_val is not none and score_val > 0 %}
 <div class="card mb-3">
     <div class="card-header">
         <i class="bi bi-speedometer2"></i> Оценка устойчивости тренда
