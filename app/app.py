@@ -695,11 +695,13 @@ def download(task_id):
         'score_val': report_obj.score or 0,
         'score_color': score_color,
     }
-    doc = generate_word_report(state)
+    doc = generate_word_report(state, c_name=task.c_name)
     buf = BytesIO()
     doc.save(buf)
     buf.seek(0)
     filename = f'report_{task.task_number}.docx'
+    if task.c_name:
+        filename = f'{task.c_name}_{task.task_number}.docx'
     return send_file(
         buf,
         as_attachment=True,

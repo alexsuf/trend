@@ -8,7 +8,7 @@ from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import qn, nsdecls
 
 
-def generate_word_report(state):
+def generate_word_report(state, c_name=None):
     doc = Document()
 
     style = doc.styles["Normal"]
@@ -24,17 +24,30 @@ def generate_word_report(state):
         section.left_margin = Cm(2.5)
         section.right_margin = Cm(2.5)
 
-    title = doc.add_heading("Исследование трендов", level=1)
-    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    for run in title.runs:
-        run.font.color.rgb = RGBColor(0x0D, 0x47, 0xA1)
-        run.font.size = Pt(28)
+    if c_name:
+        title = doc.add_heading(c_name, level=1)
+        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        for run in title.runs:
+            run.font.color.rgb = RGBColor(0x0D, 0x47, 0xA1)
+            run.font.size = Pt(28)
 
-    sub = doc.add_paragraph()
-    sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = sub.add_run("Аналитический отчёт по технологическим трендам")
-    r.font.size = Pt(14)
-    r.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
+        sub = doc.add_paragraph()
+        sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        r = sub.add_run("Информация о компании")
+        r.font.size = Pt(14)
+        r.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
+    else:
+        title = doc.add_heading("Исследование трендов", level=1)
+        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        for run in title.runs:
+            run.font.color.rgb = RGBColor(0x0D, 0x47, 0xA1)
+            run.font.size = Pt(28)
+
+        sub = doc.add_paragraph()
+        sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        r = sub.add_run("Аналитический отчёт по технологическим трендам")
+        r.font.size = Pt(14)
+        r.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
 
     info = doc.add_paragraph()
     info.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -50,52 +63,57 @@ def generate_word_report(state):
 
     doc.add_page_break()
 
-    score_val = state.get('score_val', 0)
-    score_color = state.get('score_color', '#555555')
-    score_text = state.get('score', '')
-    if score_val > 0 or score_text:
-        if score_val == 0 and score_text:
-            match = re.search(r"(\d+(?:\.\d+)?)\s*из\s*10", score_text)
-            if match:
-                score_val = int(round(float(match.group(1))))
-        if score_val > 0:
-            r_hex = int(score_color[1:3], 16)
-            g_hex = int(score_color[3:5], 16)
-            b_hex = int(score_color[5:7], 16)
-            rgb = RGBColor(r_hex, g_hex, b_hex)
-            doc.add_heading("Оценка устойчивости тренда", level=1)
-            score_p = doc.add_paragraph()
-            score_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    if c_name:
+        full_report = state.get("report", "")
+        if full_report:
+            _write_markdown_enhanced(doc, full_report)
+    else:
+        score_val = state.get('score_val', 0)
+        score_color = state.get('score_color', '#555555')
+        score_text = state.get('score', '')
+        if score_val > 0 or score_text:
+            if score_val == 0 and score_text:
+                match = re.search(r"(\d+(?:\.\d+)?)\s*из\s*10", score_text)
+                if match:
+                    score_val = int(round(float(match.group(1))))
+            if score_val > 0:
+                r_hex = int(score_color[1:3], 16)
+                g_hex = int(score_color[3:5], 16)
+                b_hex = int(score_color[5:7], 16)
+                rgb = RGBColor(r_hex, g_hex, b_hex)
+                doc.add_heading("Оценка устойчивости тренда", level=1)
+                score_p = doc.add_paragraph()
+                score_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-            shading = OxmlElement("w:shd")
-            shading.set(qn("w:fill"), score_color[1:])
-            shading.set(qn("w:val"), "clear")
-            score_p._p.get_or_add_pPr().append(shading)
+                shading = OxmlElement("w:shd")
+                shading.set(qn("w:fill"), score_color[1:])
+                shading.set(qn("w:val"), "clear")
+                score_p._p.get_or_add_pPr().append(shading)
 
-            pPr = score_p._p.get_or_add_pPr()
-            spacing = OxmlElement("w:spacing")
-            spacing.set(qn("w:before"), "240")
-            spacing.set(qn("w:after"), "240")
-            pPr.append(spacing)
+                pPr = score_p._p.get_or_add_pPr()
+                spacing = OxmlElement("w:spacing")
+                spacing.set(qn("w:before"), "240")
+                spacing.set(qn("w:after"), "240")
+                pPr.append(spacing)
 
-            r = score_p.add_run(f" {score_val} из 10 ")
-            r.font.size = Pt(36)
-            r.bold = True
-            r.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+                r = score_p.add_run(f" {score_val} из 10 ")
+                r.font.size = Pt(36)
+                r.bold = True
+                r.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
 
-            score_text_clean = re.sub(r"Оценка устойчивости.*?\n", "", score_text).strip()
-            _write_markdown_enhanced(doc, score_text_clean)
+                score_text_clean = re.sub(r"Оценка устойчивости.*?\n", "", score_text).strip()
+                _write_markdown_enhanced(doc, score_text_clean)
 
-    doc.add_heading("Глобальный анализ", level=1)
-    _write_markdown_enhanced(doc, state.get("global_analysis", ""))
-    doc.add_heading("Анализ российского рынка", level=1)
-    _write_markdown_enhanced(doc, state.get("russia_analysis", ""))
+        doc.add_heading("Глобальный анализ", level=1)
+        _write_markdown_enhanced(doc, state.get("global_analysis", ""))
+        doc.add_heading("Анализ российского рынка", level=1)
+        _write_markdown_enhanced(doc, state.get("russia_analysis", ""))
 
-    full_report = state.get("report", "")
-    if full_report:
-        doc.add_page_break()
-        doc.add_heading("Полный отчёт", level=1)
-        _write_markdown_enhanced(doc, full_report)
+        full_report = state.get("report", "")
+        if full_report:
+            doc.add_page_break()
+            doc.add_heading("Полный отчёт", level=1)
+            _write_markdown_enhanced(doc, full_report)
 
     return doc
 
